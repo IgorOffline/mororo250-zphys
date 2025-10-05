@@ -51,7 +51,6 @@ pub fn Vec2(comptime Scalar: type) type {
         pub const greaterEq = Shared.greaterEq;
         pub const splat = Shared.splat;
         pub const len2 = Shared.len2;
-        pub const len = Shared.len;
         pub const normalize = Shared.normalize;
         pub const dir = Shared.dir;
         pub const dist2 = Shared.dist2;
@@ -173,7 +172,6 @@ pub fn Vec3(comptime Scalar: type) type {
         pub const greaterEq = Shared.greaterEq;
         pub const splat = Shared.splat;
         pub const len2 = Shared.len2;
-        pub const len = Shared.len;
         pub const normalize = Shared.normalize;
         pub const dir = Shared.dir;
         pub const dist2 = Shared.dist2;
@@ -253,7 +251,6 @@ pub fn Vec4(comptime Scalar: type) type {
         pub const greaterEq = Shared.greaterEq;
         pub const splat = Shared.splat;
         pub const len2 = Shared.len2;
-        pub const len = Shared.len;
         pub const normalize = Shared.normalize;
         pub const dir = Shared.dir;
         pub const dist2 = Shared.dist2;
@@ -348,17 +345,8 @@ pub fn VecShared(comptime Scalar: type, comptime VecN: type) type {
 
         /// Computes the squared length of the vector. Faster than `len()`
         pub inline fn len2(v: *const VecN) Scalar {
-            return switch (VecN.n) {
-                inline 2 => (v.x() * v.x()) + (v.y() * v.y()),
-                inline 3 => (v.x() * v.x()) + (v.y() * v.y()) + (v.z() * v.z()),
-                inline 4 => (v.x() * v.x()) + (v.y() * v.y()) + (v.z() * v.z()) + (v.w() * v.w()),
-                else => @compileError("Expected Vec2, Vec3, Vec4, found '" ++ @typeName(VecN) ++ "'"),
-            };
-        }
-
-        /// Computes the length of the vector.
-        pub inline fn len(v: *const VecN) Scalar {
-            return math.sqrt(len2(v));
+            const squared = v.v * v.v;
+            return @reduce(.Add, squared);
         }
 
         /// Normalizes a vector, such that all components end up in the range [0.0, 1.0].
@@ -370,7 +358,7 @@ pub fn VecShared(comptime Scalar: type, comptime VecN: type) type {
         /// math.vec3(1.0, 2.0, 3.0).normalize(v, 0.00000001);
         /// ```
         pub inline fn normalize(v: *const VecN, d0: Scalar) VecN {
-            return v.div(&VecN.splat(v.len() + d0));
+            return v.div(&VecN.splat(math.sqrt(v.len2()) + d0));
         }
 
         /// Returns the normalized direction vector from points a and b.
@@ -602,13 +590,6 @@ test "len2" {
     try testing.expectEqual(@as(f32, 29), math.vec3(2, 3, -4).len2());
     try testing.expectApproxEqAbs(@as(f32, 38.115), math.vec4(1.5, 2.25, 3.33, 4.44).len2(), 0.0001);
     try testing.expectEqual(@as(f32, 0), math.vec4(0, 0, 0, 0).len2());
-}
-
-test "len" {
-    try testing.expectEqual(@as(f32, 5), math.vec2(3, 4).len());
-    try testing.expectEqual(@as(f32, 6), math.vec3(4, 4, 2).len());
-    try testing.expectEqual(@as(f32, 6.173734688177003), math.vec4(1.5, 2.25, 3.33, 4.44).len());
-    try testing.expectEqual(@as(f32, 0), math.vec4(0, 0, 0, 0).len());
 }
 
 test "normalize_example" {

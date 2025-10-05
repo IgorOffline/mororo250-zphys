@@ -5,21 +5,6 @@ inline fn signf(value: f32) f32 {
     return if (value >= 0) 1.0 else -1.0;
 }
 
-fn supportBox(center: math.Vec3, orientation: math.Quat, half_extents: math.Vec3, direction: math.Vec3) math.Vec3 {
-    const axis_x = math.vec3(1, 0, 0).mulQuat(&orientation);
-    const axis_y = math.vec3(0, 1, 0).mulQuat(&orientation);
-    const axis_z = math.vec3(0, 0, 1).mulQuat(&orientation);
-
-    const sign_x = signf(axis_x.dot(&direction));
-    const sign_y = signf(axis_y.dot(&direction));
-    const sign_z = signf(axis_z.dot(&direction));
-
-    const corner_offset = axis_x.mulScalar(half_extents.x() * sign_x)
-        .add(&axis_y.mulScalar(half_extents.y() * sign_y))
-        .add(&axis_z.mulScalar(half_extents.z() * sign_z));
-    return center.add(&corner_offset);
-}
-
 pub const GjkBox = struct {
     center: math.Vec3,
     orientation: math.Quat,
@@ -30,8 +15,7 @@ pub const GjkBox = struct {
     }
 };
 
-
-
+// Algorithm implementation: https://www.youtube.com/watch?v=ajv46BSqcK4&t=887s￥
 pub fn gjkIntersect(
     shape_a: anytype,
     shape_b: anytype,
@@ -40,7 +24,8 @@ pub fn gjkIntersect(
     var simplex_size: usize = 0;
 
     var search_direction = shape_b.center.sub(&shape_a.center);
-    if (search_direction.len2() < 1e-8) search_direction = math.vec3(1, 0, 0);
+    if (search_direction.len2() < 1e-8)
+        return true;
 
     // Add first point from Minkowski difference: S(d) = supportA(d) - supportB(-d)
     simplex[0] = shape_a.support(search_direction).sub(&shape_b.support(search_direction.negate()));
@@ -174,4 +159,93 @@ fn handleSimplex(simplex: *[4]math.Vec3, simplex_size: *usize, search_direction:
         },
         else => return false,
     }
+}
+
+pub fn supportBox(
+    center: math.Vec3,
+    rotation: math.Quat, // assumed normalized
+    half_extents: math.Vec3,
+    direction: math.Vec3,
+) math.Vec3 {
+    // Optional: handle zero direction deterministically
+    if (direction.len2() == 0.0) {
+        const local_support = math.vec3(half_extents.x(), half_extents.y(), half_extents.z());
+        const world_support = local_support.mulQuat(&rotation);
+        return center.add(&world_support);
+    }
+
+    // Localize the direction using the inverse (conjugate) rotation
+    const inv_rot = rotation.conjugate();
+    const local_dir = direction.mulQuat(&inv_rot);
+
+    const sx = if (local_dir.x() >= 0.0) half_extents.x() else -half_extents.x();
+    const sy = if (local_dir.y() >= 0.0) half_extents.y() else -half_extents.y();
+    const sz = if (local_dir.z() >= 0.0) half_extents.z() else -half_extents.z();
+
+    const local_support = math.vec3(sx, sy, sz);
+    const world_support = local_support.mulQuat(&rotation);
+    return center.add(&world_support);
+}
+
+
+test "gjkIntersect.box_box.separated" {
+    const a = GjkBox{
+        .center = math.vec3(0, 0, 0),
+        .orientation = math.Quat.identity(),
+        .half_extents = math.vec3(0.5, 0.5, 0.5),
+    };
+    const b = GjkBox{
+        .center = math.vec3(2.0, 0, 0),
+        .orientation = math.Quat.identity(),
+        .half_extents = math.vec3(0.5, 0.5, 0.5),
+    };
+    try std.testing.expect(!gjkIntersect(a, b));
+    try std.testing.expect(!gjkIntersect(b, a));
+}
+
+test "gjkIntersect.box_box.overlap" {
+    const a = GjkBox{
+        .center = math.vec3(0, 0, 0),
+        .orientation = math.Quat.identity(),
+        .half_extents = math.vec3(0.5, 0.5, 0.5),
+    };
+    const b = GjkBox{
+        .center = math.vec3(0.75, 0, 0),
+        .orientation = math.Quat.identity(),
+        .half_extents = math.vec3(0.5, 0.5, 0.5),
+    };
+    try std.testing.expect(gjkIntersect(a, b));
+    try std.testing.expect(gjkIntersect(b, a));
+}
+
+test "gjkIntersect.box_box.separated_rot_y" {
+    const a = GjkBox{
+        .center = math.vec3(0, 0, 0),
+        .orientation = math.Quat.identity(),
+        .half_extents = math.vec3(0.5, 0.5, 0.5),
+    };
+    const rot = math.Quat.fromAxisAngle(math.vec3(0, 1, 0), math.degreesToRadians(45.0));
+    const b = GjkBox{
+        .center = math.vec3(2.0, 0, 0),
+        .orientation = rot,
+        .half_extents = math.vec3(0.5, 0.5, 0.5),
+    };
+    try std.testing.expect(!gjkIntersect(a, b));
+    try std.testing.expect(!gjkIntersect(b, a));
+}
+
+test "gjkIntersect.box_box.overlap_rot_y" {
+    const a = GjkBox{
+        .center = math.vec3(0, 0, 0),
+        .orientation = math.Quat.identity(),
+        .half_extents = math.vec3(0.5, 0.5, 0.5),
+    };
+    const rot = math.Quat.fromAxisAngle(math.vec3(0, 1, 0), math.degreesToRadians(30.0));
+    const b = GjkBox{
+        .center = math.vec3(0.5, 0, 0),
+        .orientation = rot,
+        .half_extents = math.vec3(0.5, 0.5, 0.5),
+    };
+    try std.testing.expect(gjkIntersect(a, b));
+    try std.testing.expect(gjkIntersect(b, a));
 }

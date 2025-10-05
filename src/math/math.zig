@@ -1,3 +1,7 @@
+//! We use mach/math as our foundation for the math library. See Math.md for more information.
+//!
+//! Repository: https://github.com/hexops/mach
+//!
 //! # mach/math is opinionated
 //!
 //! Math is hard enough as-is, without you having to question ground truths while problem solving.

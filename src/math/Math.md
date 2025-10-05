@@ -17,3 +17,5 @@ We will build upon it based on necessity, extending or adapting functionality as
 ## Future direction
 
 - Extend functionality incrementally within src/math as needed.
+
+## Math Mach optimizations and extensions
