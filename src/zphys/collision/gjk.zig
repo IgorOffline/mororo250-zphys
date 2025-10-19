@@ -1,6 +1,9 @@
 const std = @import("std");
 const math = @import("math");
 
+
+// https://box2d.org/files/ErinCatto_GJK_GDC2010.pdf -> Erin cato presentation for Gjk get closest distance explanation
+
 inline fn signf(value: f32) f32 {
     return if (value >= 0) 1.0 else -1.0;
 }
