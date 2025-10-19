@@ -86,9 +86,6 @@ pub fn epa(polytype: [] math.Vec3, shape_a: anytype, shape_b: anytype) EpaResult
         reconstructFaces(face_edge_indexes[0..], &face_count, horizons[0..], horizon_count, edges_count);
         std.debug.assert(edges_count < polytype.len);
         polytype[edges_count] = support;
-        edges_count += 1;        reconstructFaces(face_edge_indexes[0..], &face_count, horizons[0..], horizon_count, edges_count);
-        std.debug.assert(edges_count < polytype.len);
-        polytype[edges_count] = support;
         edges_count += 1;
 
         // Recompute normals/distances for new faces only

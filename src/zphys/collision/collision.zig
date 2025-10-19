@@ -80,18 +80,16 @@ pub fn solveVelocity(bodies: []Body, contacts: []const Contact, iterations: u32,
 
             const contact_normal = contact_entry.normal.normalize(0);
 
-            // Relative velocity at contact (linear only for now)
             const relative_velocity = body_b.velocity.sub(&body_a.velocity);
             const velocity_along_normal = relative_velocity.dot(&contact_normal);
 
-            // Penetration slop and early exit for separating contacts
             const corrected_penetration = @max(contact_entry.penetration - penetration_slop, 0.0);
+            // skip when objects are moving a part and barely touching
             if (velocity_along_normal > 0 and corrected_penetration <= 0) continue;
 
             // Restitution only on closing velocity
             const restitution = if (velocity_along_normal < -0.5) contact_entry.restitution else 0.0;
 
-            // Baumgarte positional bias as velocity term
             const bias_velocity = if (delta_time > 0) (baumgarte * corrected_penetration / delta_time) else 0.0;
 
             // Normal impulse (include restitution + bias)
@@ -128,7 +126,7 @@ pub fn solveVelocity(bodies: []Body, contacts: []const Contact, iterations: u32,
 
 pub fn solvePosition(bodies: []Body, contacts: []const Contact) void {
     const correction_percent: f32 = 0.2;
-    const penetration_slop: f32 = 0.005;
+    const penetration_slop: f32 = 0.02;
 
     for (contacts) |contact_entry| {
         const body_a = &bodies[contact_entry.body_a];

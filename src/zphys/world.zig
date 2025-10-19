@@ -4,7 +4,7 @@ const Body = @import("body.zig").Body;
 const BodyDef = @import("body.zig").BodyDef;
 const collision = @import("collision/collision.zig");
 
-
+// Todo: Separate static bodies into different list for optimization reasons
 pub const World = struct {
     allocator: std.mem.Allocator,
     bodies: std.ArrayList(Body),
@@ -49,7 +49,12 @@ pub const World = struct {
             collision.solveVelocity(self.bodies.items, self.temp.contactSlice(), 10, dt);
 
             integratePositions(self, dt);
-       }
+
+            var iteration: u8 = 0;
+            while (iteration < 10) : (iteration += 1) {
+                collision.solvePosition(self.bodies.items, self.temp.contactSlice());
+            }
+        }
     }
 
     fn applyGravity(self: *World, dt: f32) void {
@@ -57,7 +62,7 @@ pub const World = struct {
         while (body_index < self.bodies.items.len) : (body_index += 1) {
             var body = &self.bodies.items[body_index];
             if (body.mass == 0) continue; // static
-            const gravity_delta_velocity = self.gravity.mulScalar(dt);
+                const gravity_delta_velocity = self.gravity.mulScalar(dt);
             body.velocity = body.velocity.add(&gravity_delta_velocity);
         }
     }
@@ -68,11 +73,6 @@ pub const World = struct {
             if (body.mass == 0) continue;
             const position_delta = body.velocity.mulScalar(dt);
             body.position = body.position.add(&position_delta);
-        }
-
-        var iteration: u8 = 0;
-        while (iteration < 10) : (iteration += 1) {
-            collision.solvePosition(self.bodies.items, self.temp.contactSlice());
         }
     }
 };

@@ -99,8 +99,7 @@ pub fn main() !void {
     while (!rl.windowShouldClose()) {
         camera.update(.free);
 
-        const dt = rl.getFrameTime();
-        try world.step(dt, 4);
+        try world.step(1.0/60.0, 4);
 
         if (rl.isKeyPressed(.z)) {
             camera.target = .init(0, 0, 0);
