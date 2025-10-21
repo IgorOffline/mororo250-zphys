@@ -15,6 +15,7 @@ pub inline fn barycentricLine(p: math.Vec3, a: math.Vec3, b: math.Vec3) math.Vec
     return math.vec2(1.0 - t, t);
 }
 
+// Todo: Optimize to use matrix multiplication instead
 /// Compute barycentric coordinates of point `p` with respect to triangle ABC.
 /// Returns weights (u, v, w) such that p ≈ u*A + v*B + w*C and u + v + w = 1.
 /// - Degenerate case (area ~ 0): falls back to the longest edge and uses line barycentric,
@@ -41,13 +42,13 @@ pub inline fn barycentricTriangle(p: math.Vec3, a: math.Vec3, b: math.Vec3, c: m
 
         if (ab2 >= ac2 and ab2 >= bc2) {
             const w2 = barycentricLine(p, a, b);
-            return math.vec3(w2.x, w2.y, 0.0);
+            return math.vec3(w2.x(), w2.y(), 0.0);
         } else if (ac2 >= ab2 and ac2 >= bc2) {
             const w2 = barycentricLine(p, a, c);
-            return math.vec3(w2.x, 0.0, w2.y);
+            return math.vec3(w2.x(), 0.0, w2.y());
         } else {
             const w2 = barycentricLine(p, b, c);
-            return math.vec3(0.0, w2.x, w2.y);
+            return math.vec3(0.0, w2.x(), w2.y());
         }
     }
 

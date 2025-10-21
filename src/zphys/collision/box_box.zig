@@ -13,21 +13,25 @@ pub fn collideBoxBox(a_id: u32, body_a: *const Body, b_id: u32, body_b: *const B
     // GJK for detection
     const shape_a = gjk.GjkBox{ .center = body_a.position, .orientation = body_a.orientation, .half_extents = box_a.half_extents };
     const shape_b = gjk.GjkBox{ .center = body_b.position, .orientation = body_b.orientation, .half_extents = box_b.half_extents };
-    var polytype : [8]math.Vec3 = undefined;
-    const intersects = gjk.gjkIntersect(&polytype, shape_a, shape_b);
+    var minkowski_points: [8]math.Vec3 = undefined;
+    var shape_a_points: [8]math.Vec3 = undefined;
+    var shape_b_points: [8]math.Vec3 = undefined;
+    const simplex_arrays: [3][]math.Vec3 = .{ minkowski_points[0..], shape_a_points[0..], shape_b_points[0..] };
+
+    const intersects = gjk.gjkIntersect(simplex_arrays, shape_a, shape_b);
     if (!intersects) return;
 
-    const epa_result = epa.epa(&polytype, shape_a, shape_b);
+    const epa_result = epa.epa(simplex_arrays, shape_a, shape_b);
 
     const friction = std.math.sqrt(@max(body_a.friction, 0) * @max(body_b.friction, 0));
     const restitution = @max(body_a.restitution, body_b.restitution);
 
-    const contact_point = body_a.position.add(&body_b.position).mulScalar(0.5);
     out.appendAssumeCapacity( .{
         .body_a = a_id,
         .body_b = b_id,
         .normal = epa_result.normal,
-        .point = contact_point,
+        .contact_point_a = epa_result.collision_point_a,
+        .contact_point_b = epa_result.collision_point_b,
         .penetration = epa_result.penetration_depth,
         .friction = friction,
         .restitution = restitution,

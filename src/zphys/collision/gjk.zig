@@ -20,18 +20,26 @@ pub const GjkBox = struct {
 
 // Algorithm implementation: https://www.youtube.com/watch?v=ajv46BSqcK4&t=887s￥
 pub fn gjkIntersect(
-    simplex: []math.Vec3,
+    simplex_arrays: [3][]math.Vec3, // [0]=minkowski simplex (A-B), [1]=shape A support points, [2]=shape B support points
     shape_a: anytype,
     shape_b: anytype,
 ) bool {
     var simplex_size: usize = 0;
+    // Keep original naming in code: alias the arrays to descriptive locals
+    var simplex = simplex_arrays[0];
+    var shape_a_points = simplex_arrays[1];
+    var shape_b_points = simplex_arrays[2];
 
     var search_direction = shape_b.center.sub(&shape_a.center);
     if (search_direction.len2() < 1e-8)
         return true;
 
     // Add first point from Minkowski difference: S(d) = supportA(d) - supportB(-d)
-    simplex[0] = shape_a.support(search_direction).sub(&shape_b.support(search_direction.negate()));
+    const support_a0 = shape_a.support(search_direction);
+    const support_b0 = shape_b.support(search_direction.negate());
+    simplex[0] = support_a0.sub(&support_b0);
+    shape_a_points[0] = support_a0;
+    shape_b_points[0] = support_b0;
     simplex_size = 1;
 
     if (simplex[0].dot(&search_direction) <= 0)
@@ -40,19 +48,23 @@ pub fn gjkIntersect(
 
     var iteration: usize = 0;
     while (iteration < 30) : (iteration += 1) {
-        const new_point = shape_a.support(search_direction).sub(&shape_b.support(search_direction.negate()));
+        const support_a = shape_a.support(search_direction);
+        const support_b = shape_b.support(search_direction.negate());
+        const new_point = support_a.sub(&support_b);
         if (new_point.dot(&search_direction) <= 0) return false;
 
         simplex[simplex_size] = new_point;
+        shape_a_points[simplex_size] = support_a;
+        shape_b_points[simplex_size] = support_b;
         simplex_size += 1;
 
-        const contains_origin = handleSimplex(simplex, &simplex_size, &search_direction);
+        const contains_origin = handleSimplex(simplex, shape_a_points, shape_b_points, &simplex_size, &search_direction);
         if (contains_origin) return true;
     }
     return false;
 }
 
-fn handleSimplex(simplex: []math.Vec3, simplex_size: *usize, search_direction: *math.Vec3) bool {
+fn handleSimplex(simplex: []math.Vec3, shape_a_points: []math.Vec3, shape_b_points: []math.Vec3, simplex_size: *usize, search_direction: *math.Vec3) bool {
     // Based on GJK in 3D - cases line, triangle, tetrahedron
     switch (simplex_size.*) {
         2 => {
@@ -77,6 +89,14 @@ fn handleSimplex(simplex: []math.Vec3, simplex_size: *usize, search_direction: *
             const point_b = simplex[1];
             const point_c = simplex[0];
 
+            // Capture corresponding A/B support points for reordering
+            const support_a_A = shape_a_points[2];
+            const support_a_B = shape_a_points[1];
+            const support_a_C = shape_a_points[0];
+            const support_b_A = shape_b_points[2];
+            const support_b_B = shape_b_points[1];
+            const support_b_C = shape_b_points[0];
+
             const to_origin = last_point.negate();
             const ab_edge = point_b.sub(&last_point);
             const ac_edge = point_c.sub(&last_point);
@@ -88,6 +108,11 @@ fn handleSimplex(simplex: []math.Vec3, simplex_size: *usize, search_direction: *
                 // Origin is outside AC edge
                 simplex[0] = point_c;
                 simplex[1] = last_point;
+                shape_a_points[0] = support_a_C;
+                shape_a_points[1] = support_a_A;
+                shape_b_points[0] = support_b_C;
+                shape_b_points[1] = support_b_A;
+
                 simplex_size.* = 2;
                 search_direction.* = ac_edge.cross(&to_origin).cross(&ac_edge);
                 if (search_direction.len2() < 1e-12) search_direction.* = math.vec3(-ac_edge.y(), ac_edge.x(), 0);
@@ -99,6 +124,11 @@ fn handleSimplex(simplex: []math.Vec3, simplex_size: *usize, search_direction: *
                 // Outside AB edge
                 simplex[0] = point_b;
                 simplex[1] = last_point;
+                shape_a_points[0] = support_a_B;
+                shape_a_points[1] = support_a_A;
+                shape_b_points[0] = support_b_B;
+                shape_b_points[1] = support_b_A;
+
                 simplex_size.* = 2;
                 search_direction.* = ab_edge.cross(&to_origin).cross(&ab_edge);
                 if (search_direction.len2() < 1e-12) search_direction.* = math.vec3(-ab_edge.y(), ab_edge.x(), 0);
@@ -113,6 +143,14 @@ fn handleSimplex(simplex: []math.Vec3, simplex_size: *usize, search_direction: *
                 simplex[0] = point_b;
                 simplex[1] = point_c;
                 simplex[2] = last_point;
+
+                shape_a_points[0] = support_a_B;
+                shape_a_points[1] = support_a_C;
+                shape_a_points[2] = support_a_A;
+                shape_b_points[0] = support_b_B;
+                shape_b_points[1] = support_b_C;
+                shape_b_points[2] = support_b_A;
+
                 search_direction.* = triangle_normal.negate();
             }
             return false;
@@ -123,6 +161,16 @@ fn handleSimplex(simplex: []math.Vec3, simplex_size: *usize, search_direction: *
             const point_b = simplex[2];
             const point_c = simplex[1];
             const point_d = simplex[0];
+
+            // Capture corresponding A/B support points for reordering
+            const support_a_A = shape_a_points[3];
+            const support_a_B = shape_a_points[2];
+            const support_a_C = shape_a_points[1];
+            const support_a_D = shape_a_points[0];
+            const support_b_A = shape_b_points[3];
+            const support_b_B = shape_b_points[2];
+            const support_b_C = shape_b_points[1];
+            const support_b_D = shape_b_points[0];
 
             const to_origin = last_point.negate();
             const ab_edge = point_b.sub(&last_point);
@@ -137,6 +185,14 @@ fn handleSimplex(simplex: []math.Vec3, simplex_size: *usize, search_direction: *
                 simplex[0] = point_c;
                 simplex[1] = point_b;
                 simplex[2] = last_point;
+
+                shape_a_points[0] = support_a_C;
+                shape_a_points[1] = support_a_B;
+                shape_a_points[2] = support_a_A;
+                shape_b_points[0] = support_b_C;
+                shape_b_points[1] = support_b_B;
+                shape_b_points[2] = support_b_A;
+
                 simplex_size.* = 3;
                 search_direction.* = face_abc;
                 return false;
@@ -145,6 +201,14 @@ fn handleSimplex(simplex: []math.Vec3, simplex_size: *usize, search_direction: *
                 simplex[0] = point_d;
                 simplex[1] = point_c;
                 simplex[2] = last_point;
+
+                shape_a_points[0] = support_a_D;
+                shape_a_points[1] = support_a_C;
+                shape_a_points[2] = support_a_A;
+                shape_b_points[0] = support_b_D;
+                shape_b_points[1] = support_b_C;
+                shape_b_points[2] = support_b_A;
+
                 simplex_size.* = 3;
                 search_direction.* = face_acd;
                 return false;
@@ -153,11 +217,18 @@ fn handleSimplex(simplex: []math.Vec3, simplex_size: *usize, search_direction: *
                 simplex[0] = point_b;
                 simplex[1] = point_d;
                 simplex[2] = last_point;
+
+                shape_a_points[0] = support_a_B;
+                shape_a_points[1] = support_a_D;
+                shape_a_points[2] = support_a_A;
+                shape_b_points[0] = support_b_B;
+                shape_b_points[1] = support_b_D;
+                shape_b_points[2] = support_b_A;
+
                 simplex_size.* = 3;
                 search_direction.* = face_adb;
                 return false;
             }
-            // Origin is inside tetrahedron
             return true;
         },
         else => return false,
@@ -202,8 +273,12 @@ test "gjkIntersect.box_box.separated" {
         .orientation = math.Quat.identity(),
         .half_extents = math.vec3(0.5, 0.5, 0.5),
     };
-    try std.testing.expect(!gjkIntersect(a, b));
-    try std.testing.expect(!gjkIntersect(b, a));
+    var simplex_points: [4]math.Vec3 = undefined;
+    var shape_a_points: [4]math.Vec3 = undefined;
+    var shape_b_points: [4]math.Vec3 = undefined;
+    const simplex_arrays: [3][]math.Vec3 = .{ simplex_points[0..], shape_a_points[0..], shape_b_points[0..] };
+    try std.testing.expect(!gjkIntersect(simplex_arrays, a, b));
+    try std.testing.expect(!gjkIntersect(simplex_arrays, b, a));
 }
 
 test "gjkIntersect.box_box.overlap" {
@@ -217,8 +292,12 @@ test "gjkIntersect.box_box.overlap" {
         .orientation = math.Quat.identity(),
         .half_extents = math.vec3(0.5, 0.5, 0.5),
     };
-    try std.testing.expect(gjkIntersect(a, b));
-    try std.testing.expect(gjkIntersect(b, a));
+    var simplex_points: [4]math.Vec3 = undefined;
+    var shape_a_points: [4]math.Vec3 = undefined;
+    var shape_b_points: [4]math.Vec3 = undefined;
+    const simplex_arrays: [3][]math.Vec3 = .{ simplex_points[0..], shape_a_points[0..], shape_b_points[0..] };
+    try std.testing.expect(gjkIntersect(simplex_arrays, a, b));
+    try std.testing.expect(gjkIntersect(simplex_arrays, b, a));
 }
 
 test "gjkIntersect.box_box.separated_rot_y" {
@@ -233,8 +312,12 @@ test "gjkIntersect.box_box.separated_rot_y" {
         .orientation = rot,
         .half_extents = math.vec3(0.5, 0.5, 0.5),
     };
-    try std.testing.expect(!gjkIntersect(a, b));
-    try std.testing.expect(!gjkIntersect(b, a));
+    var simplex_points: [4]math.Vec3 = undefined;
+    var shape_a_points: [4]math.Vec3 = undefined;
+    var shape_b_points: [4]math.Vec3 = undefined;
+    const simplex_arrays: [3][]math.Vec3 = .{ simplex_points[0..], shape_a_points[0..], shape_b_points[0..] };
+    try std.testing.expect(!gjkIntersect(simplex_arrays, a, b));
+    try std.testing.expect(!gjkIntersect(simplex_arrays, b, a));
 }
 
 test "gjkIntersect.box_box.overlap_rot_y" {
@@ -249,6 +332,10 @@ test "gjkIntersect.box_box.overlap_rot_y" {
         .orientation = rot,
         .half_extents = math.vec3(0.5, 0.5, 0.5),
     };
-    try std.testing.expect(gjkIntersect(a, b));
-    try std.testing.expect(gjkIntersect(b, a));
+    var simplex_points: [4]math.Vec3 = undefined;
+    var shape_a_points: [4]math.Vec3 = undefined;
+    var shape_b_points: [4]math.Vec3 = undefined;
+    const simplex_arrays: [3][]math.Vec3 = .{ simplex_points[0..], shape_a_points[0..], shape_b_points[0..] };
+    try std.testing.expect(gjkIntersect(simplex_arrays, a, b));
+    try std.testing.expect(gjkIntersect(simplex_arrays, b, a));
 }

@@ -23,6 +23,7 @@ pub fn collideSphereSphere(a_id: u32, sphereBodyA: *const Body, b_id: u32, spher
 
     const penetration = combined_radius - distance;
     // Approx contact point as point on surface of A along normal
+    // Todo: Calculate two differnt points for each of the objects?
     const point = sphereBodyA.position.add(&normal.mulScalar(sphere_a.radius - penetration * 0.5));
 
     const friction = std.math.sqrt(@max(sphereBodyA.friction, 0) * @max(sphereBodyB.friction, 0));
@@ -32,7 +33,8 @@ pub fn collideSphereSphere(a_id: u32, sphereBodyA: *const Body, b_id: u32, spher
         .body_a = a_id,
         .body_b = b_id,
         .normal = normal,
-        .point = point,
+        .contact_point_a = point,
+        .contact_point_b = point,
         .penetration = penetration,
         .friction = friction,
         .restitution = restitution,

@@ -24,6 +24,7 @@ pub fn collideSphereBox(a_id: u32, sphere_body: *const Body, b_id: u32, box_body
     }
 
     const penetration = sphere.radius - distance;
+    // Todo: recalculate point. To have more correct collision points when one objects is inside the other
     const point = closest;
 
     const friction = std.math.sqrt(@max(sphere_body.friction, 0) * @max(box_body.friction, 0));
@@ -33,7 +34,8 @@ pub fn collideSphereBox(a_id: u32, sphere_body: *const Body, b_id: u32, box_body
         .body_a = a_id,
         .body_b = b_id,
         .normal = normal, // from A(sphere) to B(box)? Here delta was sphere - closest => normal points from box to sphere.
-        .point = point,
+        .contact_point_a = point,
+        .contact_point_b = point,
         .penetration = penetration,
         .friction = friction,
         .restitution = restitution,

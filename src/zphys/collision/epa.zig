@@ -1,9 +1,14 @@
 const std = @import("std");
 const math = @import("math");
+const bary = @import("barycentric.zig");
 
+// Vectors have an 16bytes alignment
+// would I get any performance differnt by passing the vecotrs as reference instead?
 pub const EpaResult = struct {
     normal: math.Vec3,
     penetration_depth: f32,
+    collision_point_a: math.Vec3,
+    collision_point_b: math.Vec3,
 };
 
 // For now I multiply the size for 2 of the arrays to support Minkowski difference of 2 quads which may have max size of 8 vertices and 12 faces
@@ -14,9 +19,18 @@ const max_faces = 12;
 
 const Edge = struct { a: u32, b: u32 };
 
-// Algorithm reference: https://winter.dev/articles/epa-algorithm
-pub fn epa(polytype: [] math.Vec3, shape_a: anytype, shape_b: anytype) EpaResult {
-    // Face index buffer large enough for worst-case faces (12)
+
+/// Algorithm reference: https://winter.dev/articles/epa-algorithm
+/// Accepts array-of-arrays matching GJK layout:
+///  - simplex_arrays[0]: Minkowski points (A - B)
+///  - simplex_arrays[1]: shape A support points
+///  - simplex_arrays[2]: shape B support points
+pub fn epa(simplex_arrays: [3][] math.Vec3, shape_a: anytype, shape_b: anytype) EpaResult {
+    var polytype = simplex_arrays[0];
+    var shape_a_points = simplex_arrays[1];
+    var shape_b_points = simplex_arrays[2];
+
+    // Face index buffer large enough for worst-case faces for box - box(12)
     var face_edge_indexes: [max_faces * 3]u32 = undefined;
     face_edge_indexes[0..12].* = [12]u32{ 0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2 };
     var normals: [max_faces]math.Vec3 = undefined;
@@ -44,12 +58,36 @@ pub fn epa(polytype: [] math.Vec3, shape_a: anytype, shape_b: anytype) EpaResult
         const min_normal = normals[min_index];
         min_distance = distances[min_index];
 
-        const support = shape_a.support(min_normal).sub(&shape_b.support(min_normal.negate()));
+        const support_a = shape_a.support(min_normal);
+        const support_b = shape_b.support(min_normal.negate());
+        const support = support_a.sub(&support_b);
         const support_distance: f32 = min_normal.dot(&support);
 
         // Convergence
         if (support_distance - min_distance < tolerance) {
-            return .{ .normal = min_normal, .penetration_depth = min_distance };
+            const face = face_edge_indexes[min_index * 3 ..][0..3];
+            const a_idx = face[0];
+            const b_idx = face[1];
+            const c_idx = face[2];
+
+            const closest_point = min_normal.mulScalar(min_distance);
+            const weights = bary.barycentricTriangle(closest_point, polytype[a_idx], polytype[b_idx], polytype[c_idx]);
+
+            const collision_point_a =
+                shape_a_points[a_idx].mulScalar(weights.x())
+                .add(&shape_a_points[b_idx].mulScalar(weights.y()))
+                .add(&shape_a_points[c_idx].mulScalar(weights.z()));
+            const collision_point_b =
+                shape_b_points[a_idx].mulScalar(weights.x())
+                .add(&shape_b_points[b_idx].mulScalar(weights.y()))
+                .add(&shape_b_points[c_idx].mulScalar(weights.z()));
+
+            return .{
+                .normal = min_normal,
+                .penetration_depth = min_distance,
+                .collision_point_a = collision_point_a,
+                .collision_point_b = collision_point_b,
+            };
         }
 
         // Expand polytope: remove visible faces, collect horizon edges
@@ -86,6 +124,8 @@ pub fn epa(polytype: [] math.Vec3, shape_a: anytype, shape_b: anytype) EpaResult
         reconstructFaces(face_edge_indexes[0..], &face_count, horizons[0..], horizon_count, edges_count);
         std.debug.assert(edges_count < polytype.len);
         polytype[edges_count] = support;
+        shape_a_points[edges_count] = support_a;
+        shape_b_points[edges_count] = support_b;
         edges_count += 1;
 
         // Recompute normals/distances for new faces only
@@ -101,7 +141,29 @@ pub fn epa(polytype: [] math.Vec3, shape_a: anytype, shape_b: anytype) EpaResult
         }
     }
 
-    return .{ .normal = normals[min_index], .penetration_depth = min_distance };
+    const face = face_edge_indexes[min_index * 3 ..][0..3];
+    const a_idx = face[0];
+    const b_idx = face[1];
+    const c_idx = face[2];
+
+    const closest_point = normals[min_index].mulScalar(min_distance);
+    const weights = bary.barycentricTriangle(closest_point, polytype[a_idx], polytype[b_idx], polytype[c_idx]);
+
+    const collision_point_a =
+        shape_a_points[a_idx].mulScalar(weights.x())
+        .add(&shape_a_points[b_idx].mulScalar(weights.y()))
+        .add(&shape_a_points[c_idx].mulScalar(weights.z()));
+    const collision_point_b =
+        shape_b_points[a_idx].mulScalar(weights.x())
+        .add(&shape_b_points[b_idx].mulScalar(weights.y()))
+        .add(&shape_b_points[c_idx].mulScalar(weights.z()));
+
+    return .{
+        .normal = normals[min_index],
+        .penetration_depth = min_distance,
+        .collision_point_a = collision_point_a,
+        .collision_point_b = collision_point_b,
+    };
 }
 
 // Inline helpers (no copies, preserve logic/style)
