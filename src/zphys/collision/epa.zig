@@ -11,16 +11,16 @@ pub const EpaResult = struct {
     collision_point_b: math.Vec3,
 };
 
- // EPA capacity notes:
- // - For a triangulated convex polytope with V vertices, the maximal number of faces is F ≤ 2V − 4.
- //   Derivation (Euler + edge/face relation):
- //   • Euler for convex polyhedra: V − E + F = 2
- //   • If all faces are triangles and each edge is shared by exactly two faces: 3F = 2E ⇒ E = 3F/2
- //   • Substitute into Euler: V − (3F/2) + F = 2 ⇒ V − F/2 = 2 ⇒ F = 2V − 4
- // - For box–box, the CSO (Minkowski difference) can have up to V = 16 vertices,
- //   therefore worst-case faces is F ≤ 2*16 − 4 = 28.
- // - We use 28 here to safely handle box–box with a Minkowski buffer of 16 vertices.
- //   Consider deriving this from the supplied buffer length in the future.
+// EPA capacity notes:
+// - The maximal number of faces for convex shape is F ≤ 2V − 4.
+//   Derivation (Euler + edge/face relation):
+//   • Euler for convex polyhedra: V − E + F = 2
+//   • If all faces are triangles and each edge is shared by exactly two faces: 3F = 2E ⇒ E = 3F/2
+//   • Substitute into Euler: V − (3F/2) + F = 2 ⇒ V − F/2 = 2 ⇒ F = 2V − 4
+// - For box–box, the CSO (Minkowski difference) can have up to V = 16 vertices,
+//   therefore worst-case faces is F ≤ 2*16 − 4 = 28.
+// - We use 28 here to safely handle box–box with a Minkowski buffer of 16 vertices.
+//   Consider deriving this from the supplied buffer length in the future.
 const simplex_size = 4;
 const tolerance = 0.001;
 const max_faces = 28;
@@ -239,7 +239,6 @@ inline fn addIfUnique(buffer: []Edge, len: *u32, value: Edge) void {
 
 inline fn reconstructFaces(face_edge_indexes: []u32, face_count: *u32, horizons: []const Edge, horizon_count: u32, edges_count: u32) void {
     // Build new faces using the horizon
-    std.debug.print("face count {d} \n horizon count {d}\n ", .{face_count.*, horizon_count});
     std.debug.assert(face_count.* + horizon_count <= max_faces);
     for (horizons[0..horizon_count]) |horizon| {
         const new_face = face_edge_indexes[face_count.* * 3 ..][0..3];
