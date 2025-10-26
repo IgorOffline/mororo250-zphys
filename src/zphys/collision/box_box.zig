@@ -13,7 +13,7 @@ pub fn collideBoxBox(a_id: u32, body_a: *const Body, b_id: u32, body_b: *const B
     // GJK for detection
     const shape_a = gjk.GjkBox{ .center = body_a.position, .orientation = body_a.orientation, .half_extents = box_a.half_extents };
     const shape_b = gjk.GjkBox{ .center = body_b.position, .orientation = body_b.orientation, .half_extents = box_b.half_extents };
-    var minkowski_points: [8]math.Vec3 = undefined;
+    var minkowski_points: [16]math.Vec3 = undefined;
     var shape_a_points: [8]math.Vec3 = undefined;
     var shape_b_points: [8]math.Vec3 = undefined;
     const simplex_arrays: [3][]math.Vec3 = .{ minkowski_points[0..], shape_a_points[0..], shape_b_points[0..] };
