@@ -31,7 +31,48 @@ pub const World = struct {
 
     pub fn createBody(self: *World, def: BodyDef) !u32 {
         const id: u32 = @intCast(self.bodies.items.len);
-        try self.bodies.append(self.allocator, Body.fromDef(def));
+
+        var body = Body.fromDef(def);
+
+        var inv_local = math.Mat3x3.init(&math.vec3(0, 0, 0), &math.vec3(0, 0, 0), &math.vec3(0, 0, 0));
+        if (body.inverseMass != 0) {
+            switch (def.shape) {
+                .Sphere => |s| {
+                    const r2: f32 = s.radius * s.radius;
+                    const I: f32 = (2.0 / 5.0) * def.inverseMass * r2;
+                    const invI: f32 = if (I > 0) 1.0 / I else 0.0;
+                    inv_local = math.Mat3x3.init(
+                        &math.vec3(invI, 0, 0),
+                        &math.vec3(0, invI, 0),
+                        &math.vec3(0, 0, invI),
+                    );
+                },
+                .Box => |b| {
+                    const hx = b.half_extents.x();
+                    const hy = b.half_extents.y();
+                    const hz = b.half_extents.z();
+                    const Ixx: f32 = (1.0 / 3.0) * def.inverseMass * (hy * hy + hz * hz);
+                    const Iyy: f32 = (1.0 / 3.0) * def.inverseMass * (hx * hx + hz * hz);
+                    const Izz: f32 = (1.0 / 3.0) * def.inverseMass * (hx * hx + hy * hy);
+                    const invIxx: f32 = if (Ixx > 0) 1.0 / Ixx else 0.0;
+                    const invIyy: f32 = if (Iyy > 0) 1.0 / Iyy else 0.0;
+                    const invIzz: f32 = if (Izz > 0) 1.0 / Izz else 0.0;
+                    inv_local = math.Mat3x3.init(
+                        &math.vec3(invIxx, 0, 0),
+                        &math.vec3(0, invIyy, 0),
+                        &math.vec3(0, 0, invIzz),
+                    );
+                },
+                else => {
+                    unreachable;
+                },
+            }
+        }
+
+        body.inverseInertia = inv_local;
+
+
+        try self.bodies.append(self.allocator, body);
         return id;
     }
 
@@ -46,7 +87,7 @@ pub const World = struct {
 
             self.temp.clear();
             collision.generateContacts(self.bodies.items, &self.temp.contacts);
-            collision.solveVelocity(self.bodies.items, self.temp.contactSlice(), 10, dt);
+            collision.solveVelocity(self.bodies.items, self.temp.contactSlice(), 10);
 
             integratePositions(self, dt);
 
@@ -61,7 +102,7 @@ pub const World = struct {
         var body_index: u16 = 0;
         while (body_index < self.bodies.items.len) : (body_index += 1) {
             var body = &self.bodies.items[body_index];
-            if (body.mass == 0) continue; // static
+            if (body.inverseMass == 0) continue; // static
                 const gravity_delta_velocity = self.gravity.mulScalar(dt);
             body.velocity = body.velocity.add(&gravity_delta_velocity);
         }
@@ -70,7 +111,7 @@ pub const World = struct {
     fn integratePositions(self: *World, dt: f32) void {
         for (0..self.bodies.items.len) |body_index| {
             var body = &self.bodies.items[body_index];
-            if (body.mass == 0) continue;
+            if (body.inverseMass == 0) continue;
             const position_delta = body.velocity.mulScalar(dt);
             body.position = body.position.add(&position_delta);
 
