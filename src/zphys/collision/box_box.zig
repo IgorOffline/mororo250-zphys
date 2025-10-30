@@ -29,8 +29,8 @@ pub fn collideBoxBox(a_id: u32, body_a: *const Body, b_id: u32, body_b: *const B
 
     const epa_result = epa.epa(simplex_arrays, shape_a, shape_b);
 
-    const inv_q_a = body_a.orientation.inverse();
-    const inv_q_b = body_b.orientation.inverse();
+    const inv_q_a = body_a.orientation.conjugate();
+    const inv_q_b = body_b.orientation.conjugate();
     const point_local_a = epa_result.collision_point_a.sub(&body_a.position).mulQuat(&inv_q_a);
     const point_local_b = epa_result.collision_point_b.sub(&body_b.position).mulQuat(&inv_q_b);
 

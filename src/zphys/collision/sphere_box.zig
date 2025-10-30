@@ -26,8 +26,8 @@ pub fn collideSphereBox(a_id: u32, sphere_body: *const Body, b_id: u32, box_body
     const penetration = sphere.radius - distance;
     const point = closest;
 
-    const inv_q_a = sphere_body.orientation.inverse();
-    const inv_q_b = box_body.orientation.inverse();
+    const inv_q_a = sphere_body.orientation.conjugate();
+    const inv_q_b = box_body.orientation.conjugate();
     const point_local_a = point.sub(&sphere_body.position).mulQuat(&inv_q_a);
     const point_local_b = point.sub(&box_body.position).mulQuat(&inv_q_b);
 
@@ -42,7 +42,7 @@ pub fn collideSphereBox(a_id: u32, sphere_body: *const Body, b_id: u32, box_body
 }
 
 fn closestPointOnOBB(point: math.Vec3, center: math.Vec3, orientation: math.Quat, half_extents: math.Vec3) math.Vec3 {
-    const p_local = point.sub(&center).mulQuat(&orientation.inverse());
+    const p_local = point.sub(&center).mulQuat(&orientation.conjugate());
     const clamped = math.vec3(
         std.math.clamp(p_local.x(), -half_extents.x(), half_extents.x()),
         std.math.clamp(p_local.y(), -half_extents.y(), half_extents.y()),
