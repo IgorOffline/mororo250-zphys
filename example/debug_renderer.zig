@@ -52,19 +52,47 @@ pub const DebugRenderer = struct {
             var world_points_a: [4]rl.Vector3 = undefined;
             var world_points_b: [4]rl.Vector3 = undefined;
             
+            std.debug.print("\n=== RENDERING MANIFOLD ===\n", .{});
+            std.debug.print("Body A ID: {}, Body B ID: {}\n", .{manifold.body_a, manifold.body_b});
+            std.debug.print("Body A pos: ({d:.3}, {d:.3}, {d:.3})\n", .{body_a.position.x(), body_a.position.y(), body_a.position.z()});
+            std.debug.print("Body B pos: ({d:.3}, {d:.3}, {d:.3})\n", .{body_b.position.x(), body_b.position.y(), body_b.position.z()});
+            
             var i: u32 = 0;
             while (i < manifold.length) : (i += 1) {
+                std.debug.print("\n  Converting point {}:\n", .{i});
+                std.debug.print("    Stored Local A: ({d:.3}, {d:.3}, {d:.3})\n", .{
+                    manifold.contact_points_a[i].x(),
+                    manifold.contact_points_a[i].y(),
+                    manifold.contact_points_a[i].z()
+                });
+                
                 const point_a_local = manifold.contact_points_a[i].mulQuat(&body_a.orientation);
+                std.debug.print("    After Quat rotation: ({d:.3}, {d:.3}, {d:.3})\n", .{
+                    point_a_local.x(),
+                    point_a_local.y(),
+                    point_a_local.z()
+                });
+                
                 const world_point_a = body_a.position.add(&point_a_local);
+                std.debug.print("    Final World A: ({d:.3}, {d:.3}, {d:.3})\n", .{
+                    world_point_a.x(),
+                    world_point_a.y(),
+                    world_point_a.z()
+                });
                 
                 const point_b_local = manifold.contact_points_b[i].mulQuat(&body_b.orientation);
                 const world_point_b = body_b.position.add(&point_b_local);
+                std.debug.print("    Final World B: ({d:.3}, {d:.3}, {d:.3})\n", .{
+                    world_point_b.x(),
+                    world_point_b.y(),
+                    world_point_b.z()
+                });
                 
                 world_points_a[i] = rl.Vector3.init(world_point_a.x(), world_point_a.y(), world_point_a.z());
                 world_points_b[i] = rl.Vector3.init(world_point_b.x(), world_point_b.y(), world_point_b.z());
                 
                 rl.drawSphere(world_points_a[i], 0.08, .blue);
-                rl.drawSphere(world_points_b[i], 0.08, .sky_blue);
+                rl.drawSphere(world_points_b[i], 0.08, .red);
                 
                 drawThickLine(world_points_a[i], world_points_b[i], 0.02, .purple);
             }
@@ -73,19 +101,9 @@ pub const DebugRenderer = struct {
                 var j: u32 = 0;
                 while (j < manifold.length) : (j += 1) {
                     const next = (j + 1) % manifold.length;
-                    drawThickLine(world_points_a[j], world_points_a[next], 0.025, .yellow);
-                    drawThickLine(world_points_b[j], world_points_b[next], 0.025, .lime);
+                    drawThickLine(world_points_a[j], world_points_a[next], 0.025, .green);
+                    drawThickLine(world_points_b[j], world_points_b[next], 0.025, .orange);
                 }
-            }
-            
-            if (manifold.length > 0) {
-                const point_a_local = manifold.contact_points_a[0].mulQuat(&body_a.orientation);
-                const world_point = body_a.position.add(&point_a_local);
-                const normal_end = world_point.add(&manifold.normal.mulScalar(0.7));
-                
-                const start_rl = rl.Vector3.init(world_point.x(), world_point.y(), world_point.z());
-                const end_rl = rl.Vector3.init(normal_end.x(), normal_end.y(), normal_end.z());
-                drawThickLine(start_rl, end_rl, 0.03, .orange);
             }
         }
     }

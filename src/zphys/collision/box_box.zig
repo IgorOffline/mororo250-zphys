@@ -51,6 +51,7 @@ pub fn collideBoxBox(a_id: u32, body_a: *const Body, b_id: u32, body_b: *const B
     penetration_axis,
     &face_a_contact_points,
     &face_b_contact_points) catch {
+        std.debug.print("\n[box_box] Manifold generation failed, using fallback\n", .{});
         const point_local_a = epa_result.collision_point_a.sub(&body_a.position).mulQuat(&inv_q_a);
         const point_local_b = epa_result.collision_point_b.sub(&body_b.position).mulQuat(&inv_q_b);
 
@@ -79,6 +80,22 @@ pub fn collideBoxBox(a_id: u32, body_a: *const Body, b_id: u32, body_b: *const B
     var manifold: *contact.ContactManifold = &out.items[out.items.len - 1];
     var contact_points_a :[]math.Vec3 = &manifold.contact_points_a;
     var contact_points_b :[]math.Vec3 = &manifold.contact_points_b;
+    // Debug print: world space contact points before conversion
+    std.debug.print("\n=== MANIFOLD WORLD SPACE (original, before conversion to local) ===\n", .{});
+    std.debug.print("Body A ID: {}, Body B ID: {}\n", .{a_id, b_id});
+    for (0..manifold_size) |i| {
+        std.debug.print("  Point A[{}]: ({d:.3}, {d:.3}, {d:.3})\n", .{
+            i, face_a_contact_points[i].x(), 
+            face_a_contact_points[i].y(), 
+            face_a_contact_points[i].z()
+        });
+        std.debug.print("  Point B[{}]: ({d:.3}, {d:.3}, {d:.3})\n", .{
+            i, face_b_contact_points[i].x(), 
+            face_b_contact_points[i].y(), 
+            face_b_contact_points[i].z()
+        });
+    }
+
     if (manifold_size > 4) {
         manifold_between_two_faces.pruneContactPoints(
             max_length,
@@ -100,5 +117,20 @@ pub fn collideBoxBox(a_id: u32, body_a: *const Body, b_id: u32, body_b: *const B
     for (0..manifold.length) |i| {
         contact_points_a[i] = contact_points_a[i].sub(&body_a.position).mulQuat(&inv_q_a);
         contact_points_b[i] = contact_points_b[i].sub(&body_b.position).mulQuat(&inv_q_b);
+    }
+    
+    // Debug print: local space contact points after conversion
+    std.debug.print("\n=== MANIFOLD LOCAL SPACE (after conversion) ===\n", .{});
+    for (0..manifold.length) |i| {
+        std.debug.print("  Local A[{}]: ({d:.3}, {d:.3}, {d:.3})\n", .{
+            i, contact_points_a[i].x(), 
+            contact_points_a[i].y(), 
+            contact_points_a[i].z()
+        });
+        std.debug.print("  Local B[{}]: ({d:.3}, {d:.3}, {d:.3})\n", .{
+            i, contact_points_b[i].x(), 
+            contact_points_b[i].y(), 
+            contact_points_b[i].z()
+        });
     }
 }
