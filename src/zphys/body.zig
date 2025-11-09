@@ -1,4 +1,4 @@
-﻿const math = @import("math");
+const math = @import("math");
 const shape = @import("collision/shape.zig");
 const Shape = shape.Shape;
 

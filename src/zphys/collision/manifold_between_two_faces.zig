@@ -4,13 +4,7 @@ const clipPoly = @import("sutherland_hodgman.zig");
 
 // We use sutherland hodgman algorithm to clip the faces and find the manifold similar to jolt solution
 // Physx does a projection to 2d before prune -> Todo: Compare both solutions later.
-pub fn manifoldBetweenTwoFaces(
-    comptime max_length: usize,
-    face_a: [] const math.Vec3, face_b: [] const math.Vec3,
-    penetration_axis: math.Vec3,
-    out_face_a_contact_points: *[max_length]math.Vec3,
-    out_face_b_contact_points: *[max_length]math.Vec3) !usize {
-
+pub fn manifoldBetweenTwoFaces(comptime max_length: usize, face_a: []const math.Vec3, face_b: []const math.Vec3, penetration_axis: math.Vec3, out_face_a_contact_points: *[max_length]math.Vec3, out_face_b_contact_points: *[max_length]math.Vec3) !usize {
     const plane_origin = face_a[0];
     const first_edge = face_a[1].sub(&plane_origin);
     const second_edge = face_a[2].sub(&plane_origin);
@@ -22,15 +16,14 @@ pub fn manifoldBetweenTwoFaces(
     // face to the the project point in the clipping face. This check is necessary for division safety
     if (penetration_axis_dot_plane_normal == 0.0) return error.penetration_perp_plane_normal;
 
-    const clipped_face  = clipPoly.clipPolyPoly(max_length, face_b, face_a,
-        penetration_axis.normalize(math.eps_f32), out_face_b_contact_points);
+    const clipped_face = clipPoly.clipPolyPoly(max_length, face_b, face_a, penetration_axis.normalize(math.eps_f32), out_face_b_contact_points);
     const penetration_axis_len = std.math.sqrt(penetration_axis.len2());
 
     // projection step
     // After clipping, the new vertices are on Face 2's surface, but we need contact points on both Face 1 and Face 2
     // to resolve the collision. To solve this problem The projection step finds where each clipped vertex would land
     // on face 1's plane if moved along the penetration direction
-    var i : usize = 0;
+    var i: usize = 0;
     var manifold_count: usize = 0;
     while (i < clipped_face.len) : (i += 1) {
         const vertex2 = clipped_face[i];
@@ -51,17 +44,13 @@ pub fn manifoldBetweenTwoFaces(
     // If not contact point was found fall back to old contact point
     if (manifold_count == 0) {
         return error.nocontactpointfound;
-
     }
     return manifold_count;
 }
 
 // This prune solution is the same solution used by jolt physics engine.
 // todo: Is there a better heuristics? we should research latter for better possibly cheaper implementations
-pub fn pruneContactPoints(comptime max_length: usize, penetration_axis: math.Vec3,
-    contact_points1: []math.Vec3, contact_points2: []math.Vec3,
-    out_contact_point1: *[]math.Vec3, out_contact_point2: *[]math.Vec3) void {
-
+pub fn pruneContactPoints(comptime max_length: usize, penetration_axis: math.Vec3, contact_points1: []math.Vec3, contact_points2: []math.Vec3, out_contact_point1: *[]math.Vec3, out_contact_point2: *[]math.Vec3) void {
     const min_dist_sq = 1.0e-6;
 
     var penetration_depth_sq: [max_length]f32 = undefined;

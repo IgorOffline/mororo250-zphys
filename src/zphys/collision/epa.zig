@@ -27,13 +27,12 @@ const max_faces = 28;
 
 const Edge = struct { a: u32, b: u32 };
 
-
 /// Algorithm reference: https://winter.dev/articles/epa-algorithm
 /// Accepts array-of-arrays matching GJK layout:
 ///  - simplex_arrays[0]: Minkowski points (A - B)
 ///  - simplex_arrays[1]: shape A support points
 ///  - simplex_arrays[2]: shape B support points
-pub fn epa(simplex_arrays: [3][] math.Vec3, shape_a: anytype, shape_b: anytype) EpaResult {
+pub fn epa(simplex_arrays: [3][]math.Vec3, shape_a: anytype, shape_b: anytype) EpaResult {
     var polytype = simplex_arrays[0];
     var shape_a_points = simplex_arrays[1];
     var shape_b_points = simplex_arrays[2];
@@ -90,12 +89,12 @@ pub fn epa(simplex_arrays: [3][] math.Vec3, shape_a: anytype, shape_b: anytype) 
 
             const collision_point_a =
                 shape_a_points[a_idx].mulScalar(weights.x())
-                .add(&shape_a_points[b_idx].mulScalar(weights.y()))
-                .add(&shape_a_points[c_idx].mulScalar(weights.z()));
+                    .add(&shape_a_points[b_idx].mulScalar(weights.y()))
+                    .add(&shape_a_points[c_idx].mulScalar(weights.z()));
             const collision_point_b =
                 shape_b_points[a_idx].mulScalar(weights.x())
-                .add(&shape_b_points[b_idx].mulScalar(weights.y()))
-                .add(&shape_b_points[c_idx].mulScalar(weights.z()));
+                    .add(&shape_b_points[b_idx].mulScalar(weights.y()))
+                    .add(&shape_b_points[c_idx].mulScalar(weights.z()));
 
             return .{
                 .penetration_axis = min_normal.mulScalar(min_distance),
@@ -123,7 +122,7 @@ pub fn epa(simplex_arrays: [3][] math.Vec3, shape_a: anytype, shape_b: anytype) 
 
             // Keep this face: compact into new_face_count slot
             if (j != new_face_count) {
-                var dst : *[3]u32 = face_edge_indexes[new_face_count * 3 ..][0..3];
+                var dst: *[3]u32 = face_edge_indexes[new_face_count * 3 ..][0..3];
                 dst[0] = face[0];
                 dst[1] = face[1];
                 dst[2] = face[2];
@@ -173,12 +172,12 @@ pub fn epa(simplex_arrays: [3][] math.Vec3, shape_a: anytype, shape_b: anytype) 
 
     const collision_point_a =
         shape_a_points[a_idx].mulScalar(weights.x())
-        .add(&shape_a_points[b_idx].mulScalar(weights.y()))
-        .add(&shape_a_points[c_idx].mulScalar(weights.z()));
+            .add(&shape_a_points[b_idx].mulScalar(weights.y()))
+            .add(&shape_a_points[c_idx].mulScalar(weights.z()));
     const collision_point_b =
         shape_b_points[a_idx].mulScalar(weights.x())
-        .add(&shape_b_points[b_idx].mulScalar(weights.y()))
-        .add(&shape_b_points[c_idx].mulScalar(weights.z()));
+            .add(&shape_b_points[b_idx].mulScalar(weights.y()))
+            .add(&shape_b_points[c_idx].mulScalar(weights.z()));
 
     return .{
         .penetration_axis = normals[min_index],
@@ -188,14 +187,14 @@ pub fn epa(simplex_arrays: [3][] math.Vec3, shape_a: anytype, shape_b: anytype) 
     };
 }
 
- // Inline helpers (no copies, preserve logic/style)
-inline fn triangleCentroid(polytype: [] math.Vec3, face: []const u32) math.Vec3 {
+// Inline helpers (no copies, preserve logic/style)
+inline fn triangleCentroid(polytype: []math.Vec3, face: []const u32) math.Vec3 {
     const p0 = polytype[face[0]];
     const p1 = polytype[face[1]];
     const p2 = polytype[face[2]];
     return p0.add(&p1).add(&p2).mulScalar(1.0 / 3.0);
 }
-inline fn calcNormalDistance(polytype: [] math.Vec3, face: []const u32, centroid: math.Vec3, normal: *math.Vec3, distance: *f32) void {
+inline fn calcNormalDistance(polytype: []math.Vec3, face: []const u32, centroid: math.Vec3, normal: *math.Vec3, distance: *f32) void {
     // Use centroid as the local origin to improve numerical stability for far-away triangles
     const a = polytype[face[1]].sub(&centroid);
     const b = polytype[face[2]].sub(&centroid);

@@ -22,12 +22,12 @@ pub fn collideSphereSphere(a_id: u32, sphereBodyA: *const Body, b_id: u32, spher
     }
 
     const penetration = combined_radius - distance;
-    
+
     // Contact points stored in world space
     const point_a = sphereBodyA.position.add(&normal.mulScalar(sphere_a.radius));
     const point_b = sphereBodyB.position.sub(&normal.mulScalar(sphere_b.radius));
 
-    out.appendAssumeCapacity( .{
+    out.appendAssumeCapacity(.{
         .body_a = a_id,
         .body_b = b_id,
         .normal = normal,

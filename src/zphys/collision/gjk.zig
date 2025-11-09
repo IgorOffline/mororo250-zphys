@@ -1,7 +1,6 @@
 const std = @import("std");
 const math = @import("math");
 
-
 // https://box2d.org/files/ErinCatto_GJK_GDC2010.pdf -> Erin cato presentation for Gjk get closest distance explanation
 pub const GjkBox = struct {
     center: math.Vec3,
@@ -32,11 +31,11 @@ pub const GjkBox = struct {
     // Vertices are returned in counter-clockwise order when viewed from outside
     pub fn getSupportFace(self: *const @This(), direction: math.Vec3) [4]math.Vec3 {
         var face: [4]math.Vec3 = undefined;
-        
+
         // Transform direction to local space to work with AABB
         const inv_rot = self.orientation.conjugate();
         const local_dir = direction.mulQuat(&inv_rot);
-        
+
         const abs_x = @abs(local_dir.x());
         const abs_y = @abs(local_dir.y());
         const abs_z = @abs(local_dir.z());
@@ -64,23 +63,22 @@ pub const GjkBox = struct {
             face[2] = math.vec3(hx, hy, z);
             face[3] = math.vec3(hx, -hy, z);
         }
-        
+
         // Transform all vertices from local space to world space
         inline for (0..4) |i| {
             const vertex = face[i].mulQuat(&self.orientation);
             face[i] = self.center.add(&vertex);
         }
-        
+
         return face;
     }
 };
 
-
 // Algorithm implementation: https://www.youtube.com/watch?v=ajv46BSqcK4&t=887s￥
 pub fn gjkIntersect(
-simplex_arrays: [3][]math.Vec3, // [0]=minkowski simplex (A-B), [1]=shape A support points, [2]=shape B support points
-shape_a: anytype,
-shape_b: anytype,
+    simplex_arrays: [3][]math.Vec3, // [0]=minkowski simplex (A-B), [1]=shape A support points, [2]=shape B support points
+    shape_a: anytype,
+    shape_b: anytype,
 ) bool {
     var simplex_size: usize = 0;
     // Keep original naming in code: alias the arrays to descriptive locals
@@ -90,7 +88,7 @@ shape_b: anytype,
 
     var search_direction = shape_b.center.sub(&shape_a.center);
     if (search_direction.len2() < 1e-8)
-    return true;
+        return true;
 
     // Add first point from Minkowski difference: S(d) = supportA(d) - supportB(-d)
     const support_a0 = shape_a.support(search_direction);
@@ -101,7 +99,7 @@ shape_b: anytype,
     simplex_size = 1;
 
     if (simplex[0].dot(&search_direction) <= 0)
-    return false;
+        return false;
     search_direction = simplex[0].negate();
 
     var iteration: usize = 0;
@@ -127,28 +125,28 @@ fn handleSimplex(simplex: []math.Vec3, shape_a_points: []math.Vec3, shape_b_poin
     switch (simplex_size.*) {
         2 => {
             // Line AB (A = last)
-        const last_point = simplex[1];
+            const last_point = simplex[1];
             const previous_point = simplex[0];
             const to_origin = last_point.negate();
             const ab_edge = previous_point.sub(&last_point);
 
             // New direction perpendicular to AB towards origin
-        const ab_cross_ao = ab_edge.cross(&to_origin);
+            const ab_cross_ao = ab_edge.cross(&to_origin);
             search_direction.* = ab_cross_ao.cross(&ab_edge);
             if (search_direction.len2() < 1e-12) {
                 // pick any perpendicular
-            search_direction.* = math.vec3(-ab_edge.y(), ab_edge.x(), 0);
+                search_direction.* = math.vec3(-ab_edge.y(), ab_edge.x(), 0);
             }
             return false;
         },
         3 => {
             // Triangle ABC (A = last)
-        const last_point = simplex[2];
+            const last_point = simplex[2];
             const point_b = simplex[1];
             const point_c = simplex[0];
 
             // Capture corresponding A/B support points for reordering
-        const support_a_A = shape_a_points[2];
+            const support_a_A = shape_a_points[2];
             const support_a_B = shape_a_points[1];
             const support_a_C = shape_a_points[0];
             const support_b_A = shape_b_points[2];
@@ -161,7 +159,7 @@ fn handleSimplex(simplex: []math.Vec3, shape_a_points: []math.Vec3, shape_b_poin
             const triangle_normal = ab_edge.cross(&ac_edge);
 
             // Determine which side of triangle the origin lies
-        const ab_perp_direction = triangle_normal.cross(&ac_edge);
+            const ab_perp_direction = triangle_normal.cross(&ac_edge);
             if (ab_perp_direction.dot(&to_origin) > 0) {
                 // Origin is outside AC edge
                 simplex[0] = point_c;
@@ -194,7 +192,7 @@ fn handleSimplex(simplex: []math.Vec3, shape_a_points: []math.Vec3, shape_b_poin
             }
 
             // Otherwise, origin is above/below triangle
-        if (triangle_normal.dot(&to_origin) > 0) {
+            if (triangle_normal.dot(&to_origin) > 0) {
                 search_direction.* = triangle_normal;
             } else {
                 // Wind triangle the other way
@@ -215,13 +213,13 @@ fn handleSimplex(simplex: []math.Vec3, shape_a_points: []math.Vec3, shape_b_poin
         },
         4 => {
             // Tetrahedron ABCD (A = last)
-        const last_point = simplex[3];
+            const last_point = simplex[3];
             const point_b = simplex[2];
             const point_c = simplex[1];
             const point_d = simplex[0];
 
             // Capture corresponding A/B support points for reordering
-        const support_a_A = shape_a_points[3];
+            const support_a_A = shape_a_points[3];
             const support_a_B = shape_a_points[2];
             const support_a_C = shape_a_points[1];
             const support_a_D = shape_a_points[0];
@@ -299,15 +297,15 @@ inline fn signf(value: f32) f32 {
 
 test "gjkIntersect.box_box.separated" {
     const a = GjkBox{
-    .center = math.vec3(0, 0, 0),
-    .orientation = math.Quat.identity(),
-    .half_extents = math.vec3(0.5, 0.5, 0.5),
-};
+        .center = math.vec3(0, 0, 0),
+        .orientation = math.Quat.identity(),
+        .half_extents = math.vec3(0.5, 0.5, 0.5),
+    };
     const b = GjkBox{
-    .center = math.vec3(2.0, 0, 0),
-    .orientation = math.Quat.identity(),
-    .half_extents = math.vec3(0.5, 0.5, 0.5),
-};
+        .center = math.vec3(2.0, 0, 0),
+        .orientation = math.Quat.identity(),
+        .half_extents = math.vec3(0.5, 0.5, 0.5),
+    };
     var simplex_points: [4]math.Vec3 = undefined;
     var shape_a_points: [4]math.Vec3 = undefined;
     var shape_b_points: [4]math.Vec3 = undefined;
@@ -318,15 +316,15 @@ test "gjkIntersect.box_box.separated" {
 
 test "gjkIntersect.box_box.overlap" {
     const a = GjkBox{
-    .center = math.vec3(0, 0, 0),
-    .orientation = math.Quat.identity(),
-    .half_extents = math.vec3(0.5, 0.5, 0.5),
-};
+        .center = math.vec3(0, 0, 0),
+        .orientation = math.Quat.identity(),
+        .half_extents = math.vec3(0.5, 0.5, 0.5),
+    };
     const b = GjkBox{
-    .center = math.vec3(0.75, 0, 0),
-    .orientation = math.Quat.identity(),
-    .half_extents = math.vec3(0.5, 0.5, 0.5),
-};
+        .center = math.vec3(0.75, 0, 0),
+        .orientation = math.Quat.identity(),
+        .half_extents = math.vec3(0.5, 0.5, 0.5),
+    };
     var simplex_points: [4]math.Vec3 = undefined;
     var shape_a_points: [4]math.Vec3 = undefined;
     var shape_b_points: [4]math.Vec3 = undefined;

@@ -1,4 +1,4 @@
-﻿const std = @import("std");
+const std = @import("std");
 const builtin = @import("builtin");
 
 pub fn main() !void {
@@ -67,7 +67,7 @@ pub fn main() !void {
             try printGreen(&tty_config, stderr, "{s} - ({d}ms)\n", .{ name, elapsed });
         } else |err| {
             fail_count += 1;
-            try printRed(&tty_config,stderr, "{s} - {}\n", .{ name, err });
+            try printRed(&tty_config, stderr, "{s} - {}\n", .{ name, err });
         }
     }
     try stderr.print("\nSummary: total={d}, passed={d}, failed={d}, leaked={d}, time={d}ms\n", .{ total_count, pass_count, fail_count, leak_count, total_elapsed });
@@ -76,7 +76,7 @@ pub fn main() !void {
 
 fn extractName(t: std.builtin.TestFn) []const u8 {
     const marker = std.mem.lastIndexOf(u8, t.name, ".test.") orelse return t.name;
-    return t.name[marker+6..];
+    return t.name[marker + 6 ..];
 }
 
 fn printGreen(config: *const std.Io.tty.Config, writer: *std.Io.Writer, comptime message: []const u8, args: anytype) !void {

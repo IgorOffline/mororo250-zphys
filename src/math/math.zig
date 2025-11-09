@@ -51,7 +51,6 @@ const q = @import("quat.zig");
 const ray = @import("ray.zig");
 
 /// Public namespaces
-
 /// Standard f32 precision types
 pub const Vec2 = vec.Vec2(f32);
 pub const Vec3 = vec.Vec3(f32);

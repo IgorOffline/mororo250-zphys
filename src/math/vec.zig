@@ -105,22 +105,22 @@ pub fn Vec3(comptime Scalar: type) type {
         pub inline fn xy(v: *const VecN) Vec2(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [2]T{
                 @intFromEnum(VecComponent.x),
-                @intFromEnum(VecComponent.y)})
-            };
+                @intFromEnum(VecComponent.y),
+            }) };
         }
 
         pub inline fn yz(v: *const VecN) Vec2(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [2]T{
                 @intFromEnum(VecComponent.t),
-                @intFromEnum(VecComponent.z)})
-            };
+                @intFromEnum(VecComponent.z),
+            }) };
         }
 
         pub inline fn xz(v: *const VecN) Vec2(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [2]T{
                 @intFromEnum(VecComponent.x),
-                @intFromEnum(VecComponent.z)})
-            };
+                @intFromEnum(VecComponent.z),
+            }) };
         }
 
         pub inline fn swizzle(
@@ -237,75 +237,75 @@ pub fn Vec4(comptime Scalar: type) type {
         pub inline fn xy(v: *const VecN) Vec2(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [2]T{
                 @intFromEnum(VecComponent.x),
-                @intFromEnum(VecComponent.y)})
-            };
+                @intFromEnum(VecComponent.y),
+            }) };
         }
 
         pub inline fn yz(v: *const VecN) Vec2(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [2]T{
                 @intFromEnum(VecComponent.t),
-                @intFromEnum(VecComponent.z)})
-            };
+                @intFromEnum(VecComponent.z),
+            }) };
         }
 
         pub inline fn xz(v: *const VecN) Vec2(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [2]T{
                 @intFromEnum(VecComponent.x),
-                @intFromEnum(VecComponent.z)})
-            };
+                @intFromEnum(VecComponent.z),
+            }) };
         }
 
         pub inline fn xw(v: *const VecN) Vec2(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [2]T{
                 @intFromEnum(VecComponent.x),
-                @intFromEnum(VecComponent.w)})
-            };
+                @intFromEnum(VecComponent.w),
+            }) };
         }
 
         pub inline fn yw(v: *const VecN) Vec2(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [2]T{
                 @intFromEnum(VecComponent.y),
-                @intFromEnum(VecComponent.w)})
-            };
+                @intFromEnum(VecComponent.w),
+            }) };
         }
 
         pub inline fn zw(v: *const VecN) Vec2(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [2]T{
                 @intFromEnum(VecComponent.z),
-                @intFromEnum(VecComponent.w)})
-            };
+                @intFromEnum(VecComponent.w),
+            }) };
         }
 
         pub inline fn xyz(v: *const VecN) Vec3(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [3]T{
                 @intFromEnum(VecComponent.x),
                 @intFromEnum(VecComponent.y),
-                @intFromEnum(VecComponent.z)})
-            };
+                @intFromEnum(VecComponent.z),
+            }) };
         }
 
         pub inline fn xyw(v: *const VecN) Vec3(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [3]T{
                 @intFromEnum(VecComponent.x),
                 @intFromEnum(VecComponent.y),
-                @intFromEnum(VecComponent.w)})
-            };
+                @intFromEnum(VecComponent.w),
+            }) };
         }
 
         pub inline fn xzw(v: *const VecN) Vec3(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [3]T{
                 @intFromEnum(VecComponent.x),
                 @intFromEnum(VecComponent.z),
-                @intFromEnum(VecComponent.w)})
-            };
+                @intFromEnum(VecComponent.w),
+            }) };
         }
 
         pub inline fn yzw(v: *const VecN) Vec3(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [3]T{
                 @intFromEnum(VecComponent.y),
                 @intFromEnum(VecComponent.z),
-                @intFromEnum(VecComponent.w)})
-            };
+                @intFromEnum(VecComponent.w),
+            }) };
         }
 
         pub inline fn swizzle(
@@ -639,7 +639,7 @@ test "eqlApprox_vec3" {
 
 test "gpu_compatibility" {
     // https://www.w3.org/TR/WGSL/#alignment-and-size
-    try testing.expectEqual(@as(usize, 8), @sizeOf(math.Vec2));  // WGSL AlignOf 8, SizeOf 8
+    try testing.expectEqual(@as(usize, 8), @sizeOf(math.Vec2)); // WGSL AlignOf 8, SizeOf 8
     try testing.expectEqual(@as(usize, 16), @sizeOf(math.Vec3)); // WGSL AlignOf 16, SizeOf 12
     try testing.expectEqual(@as(usize, 16), @sizeOf(math.Vec4)); // WGSL AlignOf 16, SizeOf 16
 
@@ -647,7 +647,7 @@ test "gpu_compatibility" {
     try testing.expectEqual(@as(usize, 8), @sizeOf(math.Vec3h)); // WGSL AlignOf 8, SizeOf 6
     try testing.expectEqual(@as(usize, 8), @sizeOf(math.Vec4h)); // WGSL AlignOf 8, SizeOf 8
 
-    try testing.expectEqual(@as(usize, 8 * 2), @sizeOf(math.Vec2d));  // speculative
+    try testing.expectEqual(@as(usize, 8 * 2), @sizeOf(math.Vec2d)); // speculative
     try testing.expectEqual(@as(usize, 16 * 2), @sizeOf(math.Vec3d)); // speculative
     try testing.expectEqual(@as(usize, 16 * 2), @sizeOf(math.Vec4d)); // speculative
 }
@@ -886,7 +886,7 @@ test "div_vec2" {
 }
 
 test "div_vec3" {
-        const a: math.Vec3 = math.vec3(21, 144, 1);
+    const a: math.Vec3 = math.vec3(21, 144, 1);
     const b: math.Vec3 = math.vec3(3, 12, 3);
     const div = a.div(&b);
     try testing.expectApproxEqRel(7, div.x(), math.eps_f32);
@@ -1245,18 +1245,18 @@ test "Vec4d_fromInt" {
 
 test "Vec4_swizzle_to_Vec3_and_Vec2" {
     const v = math.vec4(1, 2, 3, 4);
-    
+
     // Vec4 -> Vec3 swizzles
     try testing.expectEqual(math.vec3(1, 2, 3), v.xyz());
     try testing.expectEqual(math.vec3(1, 2, 4), v.xyw());
     try testing.expectEqual(math.vec3(1, 3, 4), v.xzw());
     try testing.expectEqual(math.vec3(2, 3, 4), v.yzw());
-    
+
     // Custom Vec3 swizzle
     const v2 = math.vec4(10, 20, 30, 40);
     try testing.expectEqual(math.vec3(40, 10, 30), v2.swizzle(.w, .x, .z));
     try testing.expectEqual(math.vec3(1, 1, 1), v.swizzle(.x, .x, .x));
-    
+
     // Vec4 -> Vec2 swizzles
     try testing.expectEqual(math.vec2(1, 2), v.xy());
     try testing.expectEqual(math.vec2(2, 3), v.yz());
@@ -1268,7 +1268,7 @@ test "Vec4_swizzle_to_Vec3_and_Vec2" {
 
 test "Vec3_swizzle_to_Vec2" {
     const v = math.vec3(10, 20, 30);
-    
+
     try testing.expectEqual(math.vec2(10, 20), v.xy());
     try testing.expectEqual(math.vec2(20, 30), v.yz());
     try testing.expectEqual(math.vec2(10, 30), v.xz());

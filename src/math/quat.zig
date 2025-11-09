@@ -401,7 +401,6 @@ test "fromMat4" {
     try testing.expectApproxEqRel(expected.v.x(), q.v.x(), 5 * math.eps_f32);
     try testing.expectApproxEqRel(expected.v.y(), q.v.y(), 5 * math.eps_f32);
     try testing.expectApproxEqRel(expected.v.z(), q.v.z(), 5 * math.eps_f32);
-
 }
 
 test "fromEuler" {

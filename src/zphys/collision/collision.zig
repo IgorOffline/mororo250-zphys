@@ -19,7 +19,6 @@ pub const gjkBoxesIntersect = gjk.gjkBoxesIntersect;
 pub const satBoxBoxContact = sat.satBoxBoxContact;
 pub const ContactManifold = contact.ContactManifold;
 
-
 // Todo: Add BroadPhase collision check in here
 pub fn generateContacts(bodies: []const Body, contacts_out: *std.ArrayList(Contact), manifolds_out: *std.ArrayList(contact.ContactManifold)) void {
     var index_a: usize = 0;
@@ -32,43 +31,43 @@ pub fn generateContacts(bodies: []const Body, contacts_out: *std.ArrayList(Conta
             if (body_a.inverseMass == 0 and body_b.inverseMass == 0) continue;
 
             switch (body_a.shape) {
-            .Sphere => |_| {
-                switch (body_b.shape) {
-                .Sphere => |_| collideSphereSphere(@intCast(index_a), body_a, @intCast(index_b), body_b, contacts_out),
-                .Box => |_| collideSphereBox(@intCast(index_a), body_a, @intCast(index_b), body_b, contacts_out),
-                else => {},
-            }
-            },
-            .Box => |_| {
-                switch (body_b.shape) {
                 .Sphere => |_| {
-                    // sphere-box expects sphere as A, box as B; swap roles
-                    const previous_len = contacts_out.items.len;
-                    collideSphereBox(@intCast(index_b), body_b, @intCast(index_a), body_a, contacts_out);
-
-                    // If a contact was added, remap to keep ordering A=index_a (box), B=index_b (sphere)
-                    if (contacts_out.items.len > previous_len) {
-                        var contact_ref = &contacts_out.items[contacts_out.items.len - 1];
-
-                        // ensure normal points from A(index_a) to B(index_b)
-                        contact_ref.normal = contact_ref.normal.negate();
-
-                        // set indices to match (index_a -> index_b)
-                        contact_ref.body_a = @intCast(index_a);
-                        contact_ref.body_b = @intCast(index_b);
-
-                        // swap world space contact points to preserve A/B semantics
-                        const tmp = contact_ref.point_a;
-                        contact_ref.point_a = contact_ref.point_b;
-                        contact_ref.point_b = tmp;
+                    switch (body_b.shape) {
+                        .Sphere => |_| collideSphereSphere(@intCast(index_a), body_a, @intCast(index_b), body_b, contacts_out),
+                        .Box => |_| collideSphereBox(@intCast(index_a), body_a, @intCast(index_b), body_b, contacts_out),
+                        else => {},
                     }
                 },
-                .Box => |_| collideBoxBox(@intCast(index_a), body_a, @intCast(index_b), body_b, manifolds_out),
+                .Box => |_| {
+                    switch (body_b.shape) {
+                        .Sphere => |_| {
+                            // sphere-box expects sphere as A, box as B; swap roles
+                            const previous_len = contacts_out.items.len;
+                            collideSphereBox(@intCast(index_b), body_b, @intCast(index_a), body_a, contacts_out);
+
+                            // If a contact was added, remap to keep ordering A=index_a (box), B=index_b (sphere)
+                            if (contacts_out.items.len > previous_len) {
+                                var contact_ref = &contacts_out.items[contacts_out.items.len - 1];
+
+                                // ensure normal points from A(index_a) to B(index_b)
+                                contact_ref.normal = contact_ref.normal.negate();
+
+                                // set indices to match (index_a -> index_b)
+                                contact_ref.body_a = @intCast(index_a);
+                                contact_ref.body_b = @intCast(index_b);
+
+                                // swap world space contact points to preserve A/B semantics
+                                const tmp = contact_ref.point_a;
+                                contact_ref.point_a = contact_ref.point_b;
+                                contact_ref.point_b = tmp;
+                            }
+                        },
+                        .Box => |_| collideBoxBox(@intCast(index_a), body_a, @intCast(index_b), body_b, manifolds_out),
+                        else => {},
+                    }
+                },
                 else => {},
             }
-            },
-            else => {},
-        }
         }
     }
 }
@@ -142,36 +141,36 @@ inline fn solveContactPoint(body_a: *Body, body_b: *Body, contact_normal: math.V
     }
 
     // Friction (Coulomb, clamped by mu * |jn|)
-     var vel_tan = relative_velocity.sub(&contact_normal.mulScalar(relative_velocity.dot(&contact_normal)));
-     const tangent_len2 = vel_tan.len2();
-     if (tangent_len2 <= 1e-12) return;
-     vel_tan = vel_tan.normalize(math.eps_f32);
+    var vel_tan = relative_velocity.sub(&contact_normal.mulScalar(relative_velocity.dot(&contact_normal)));
+    const tangent_len2 = vel_tan.len2();
+    if (tangent_len2 <= 1e-12) return;
+    vel_tan = vel_tan.normalize(math.eps_f32);
 
-     // Effective mass in tangent direction
-     const k_a_t = effectiveMass(vel_tan, inv_mass_a, body_a.inverseInertia, r_a_world);
-     const k_b_t = effectiveMass(vel_tan, inv_mass_b, body_b.inverseInertia, r_b_world);
-     const k_t = k_a_t + k_b_t;
-     const tangential_impulse_magnitude = -(relative_velocity.dot(&vel_tan)) / k_t;
-     const friction_coefficient = std.math.sqrt(@max(body_a.friction, 0) * @max(body_b.friction, 0));
+    // Effective mass in tangent direction
+    const k_a_t = effectiveMass(vel_tan, inv_mass_a, body_a.inverseInertia, r_a_world);
+    const k_b_t = effectiveMass(vel_tan, inv_mass_b, body_b.inverseInertia, r_b_world);
+    const k_t = k_a_t + k_b_t;
+    const tangential_impulse_magnitude = -(relative_velocity.dot(&vel_tan)) / k_t;
+    const friction_coefficient = std.math.sqrt(@max(body_a.friction, 0) * @max(body_b.friction, 0));
 
-     const max_friction = friction_coefficient * normal_impulse_magnitude;
-     var clamped_tangential_impulse = tangential_impulse_magnitude;
-     if (clamped_tangential_impulse > max_friction) clamped_tangential_impulse = max_friction;
-     if (clamped_tangential_impulse < -max_friction) clamped_tangential_impulse = -max_friction;
+    const max_friction = friction_coefficient * normal_impulse_magnitude;
+    var clamped_tangential_impulse = tangential_impulse_magnitude;
+    if (clamped_tangential_impulse > max_friction) clamped_tangential_impulse = max_friction;
+    if (clamped_tangential_impulse < -max_friction) clamped_tangential_impulse = -max_friction;
 
-     const tangential_impulse = vel_tan.mulScalar(clamped_tangential_impulse);
+    const tangential_impulse = vel_tan.mulScalar(clamped_tangential_impulse);
 
-     // Linear friction impulses
-     body_a.velocity = body_a.velocity.sub(&tangential_impulse.mulScalar(inv_mass_a));
-     body_b.velocity = body_b.velocity.add(&tangential_impulse.mulScalar(inv_mass_b));
+    // Linear friction impulses
+    body_a.velocity = body_a.velocity.sub(&tangential_impulse.mulScalar(inv_mass_a));
+    body_b.velocity = body_b.velocity.add(&tangential_impulse.mulScalar(inv_mass_b));
 
-     // Angular friction impulses
-     const angular_impulse_a_t = r_a_world.cross(&tangential_impulse);
-     const delta_omega_a_t = body_a.inverseInertia.mulVec(&angular_impulse_a_t);
-     body_a.angularVelocity = body_a.angularVelocity.sub(&delta_omega_a_t);
-     const angular_impulse_b_t = r_b_world.cross(&tangential_impulse);
-     const delta_omega_b_t = body_b.inverseInertia.mulVec(&angular_impulse_b_t);
-     body_b.angularVelocity = body_b.angularVelocity.add(&delta_omega_b_t);
+    // Angular friction impulses
+    const angular_impulse_a_t = r_a_world.cross(&tangential_impulse);
+    const delta_omega_a_t = body_a.inverseInertia.mulVec(&angular_impulse_a_t);
+    body_a.angularVelocity = body_a.angularVelocity.sub(&delta_omega_a_t);
+    const angular_impulse_b_t = r_b_world.cross(&tangential_impulse);
+    const delta_omega_b_t = body_b.inverseInertia.mulVec(&angular_impulse_b_t);
+    body_b.angularVelocity = body_b.angularVelocity.add(&delta_omega_b_t);
 }
 
 inline fn computeInverseInertiaWorld(body: *const Body) math.Mat3x3 {

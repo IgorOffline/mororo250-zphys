@@ -53,9 +53,7 @@ pub fn satBoxBoxContact(
     {
         // A0
         const projection_radius_a = box_a.half_extents.x();
-        const projection_radius_b = box_b.half_extents.x() * abs_rotation[0][0]
-            + box_b.half_extents.y() * abs_rotation[0][1]
-            + box_b.half_extents.z() * abs_rotation[0][2];
+        const projection_radius_b = box_b.half_extents.x() * abs_rotation[0][0] + box_b.half_extents.y() * abs_rotation[0][1] + box_b.half_extents.z() * abs_rotation[0][2];
         const center_distance = @abs(translation_in_a.x());
         if (center_distance > projection_radius_a + projection_radius_b) return null;
         const overlap = (projection_radius_a + projection_radius_b) - center_distance;
@@ -66,9 +64,7 @@ pub fn satBoxBoxContact(
 
         // A1
         const projection_radius_a_1 = box_a.half_extents.y();
-        const projection_radius_b_1 = box_b.half_extents.x() * abs_rotation[1][0]
-            + box_b.half_extents.y() * abs_rotation[1][1]
-            + box_b.half_extents.z() * abs_rotation[1][2];
+        const projection_radius_b_1 = box_b.half_extents.x() * abs_rotation[1][0] + box_b.half_extents.y() * abs_rotation[1][1] + box_b.half_extents.z() * abs_rotation[1][2];
         const center_distance_1 = @abs(translation_in_a.y());
         if (center_distance_1 > projection_radius_a_1 + projection_radius_b_1) return null;
         const overlap_1 = (projection_radius_a_1 + projection_radius_b_1) - center_distance_1;
@@ -79,9 +75,7 @@ pub fn satBoxBoxContact(
 
         // A2
         const projection_radius_a_2 = box_a.half_extents.z();
-        const projection_radius_b_2 = box_b.half_extents.x() * abs_rotation[2][0]
-            + box_b.half_extents.y() * abs_rotation[2][1]
-            + box_b.half_extents.z() * abs_rotation[2][2];
+        const projection_radius_b_2 = box_b.half_extents.x() * abs_rotation[2][0] + box_b.half_extents.y() * abs_rotation[2][1] + box_b.half_extents.z() * abs_rotation[2][2];
         const center_distance_2 = @abs(translation_in_a.z());
         if (center_distance_2 > projection_radius_a_2 + projection_radius_b_2) return null;
         const overlap_2 = (projection_radius_a_2 + projection_radius_b_2) - center_distance_2;
@@ -94,9 +88,7 @@ pub fn satBoxBoxContact(
     // Test axes L = B0, B1, B2
     {
         // B0
-        const projection_radius_a = box_a.half_extents.x() * abs_rotation[0][0]
-            + box_a.half_extents.y() * abs_rotation[1][0]
-            + box_a.half_extents.z() * abs_rotation[2][0];
+        const projection_radius_a = box_a.half_extents.x() * abs_rotation[0][0] + box_a.half_extents.y() * abs_rotation[1][0] + box_a.half_extents.z() * abs_rotation[2][0];
         const projection_radius_b = box_b.half_extents.x();
         const center_distance = @abs(
             translation_in_a.x() * rotation[0][0] + translation_in_a.y() * rotation[1][0] + translation_in_a.z() * rotation[2][0],
@@ -109,9 +101,7 @@ pub fn satBoxBoxContact(
         }
 
         // B1
-        const projection_radius_a_1 = box_a.half_extents.x() * abs_rotation[0][1]
-            + box_a.half_extents.y() * abs_rotation[1][1]
-            + box_a.half_extents.z() * abs_rotation[2][1];
+        const projection_radius_a_1 = box_a.half_extents.x() * abs_rotation[0][1] + box_a.half_extents.y() * abs_rotation[1][1] + box_a.half_extents.z() * abs_rotation[2][1];
         const projection_radius_b_1 = box_b.half_extents.y();
         const center_distance_1 = @abs(
             translation_in_a.x() * rotation[0][1] + translation_in_a.y() * rotation[1][1] + translation_in_a.z() * rotation[2][1],
@@ -124,9 +114,7 @@ pub fn satBoxBoxContact(
         }
 
         // B2
-        const projection_radius_a_2 = box_a.half_extents.x() * abs_rotation[0][2]
-            + box_a.half_extents.y() * abs_rotation[1][2]
-            + box_a.half_extents.z() * abs_rotation[2][2];
+        const projection_radius_a_2 = box_a.half_extents.x() * abs_rotation[0][2] + box_a.half_extents.y() * abs_rotation[1][2] + box_a.half_extents.z() * abs_rotation[2][2];
         const projection_radius_b_2 = box_b.half_extents.z();
         const center_distance_2 = @abs(
             translation_in_a.x() * rotation[0][2] + translation_in_a.y() * rotation[1][2] + translation_in_a.z() * rotation[2][2],

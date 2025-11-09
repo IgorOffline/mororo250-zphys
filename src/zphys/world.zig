@@ -1,4 +1,4 @@
-﻿const std = @import("std");
+const std = @import("std");
 const math = @import("math");
 const Body = @import("body.zig").Body;
 const BodyDef = @import("body.zig").BodyDef;
@@ -48,7 +48,7 @@ pub const World = struct {
                     );
                 },
                 .Box => |b| {
-                    const coef = def.inverseMass/12.0;
+                    const coef = def.inverseMass / 12.0;
                     const xlength = 2 * b.half_extents.x();
                     const ylength = 2 * b.half_extents.y();
                     const zlength = 2 * b.half_extents.z();
@@ -71,7 +71,6 @@ pub const World = struct {
         }
 
         body.inverseInertia = inv_local;
-
 
         try self.bodies.append(self.allocator, body);
         return id;
@@ -97,7 +96,7 @@ pub const World = struct {
 
         integratePositions(self, dt);
 
-        var i :usize = 0;
+        var i: usize = 0;
         while (i < 10) : (i += 1) {
             collision.solvePosition(self.bodies.items, self.temp.contactSlice(), self.temp.manifoldSlice());
         }
@@ -108,7 +107,7 @@ pub const World = struct {
         while (body_index < self.bodies.items.len) : (body_index += 1) {
             var body = &self.bodies.items[body_index];
             if (body.inverseMass == 0) continue; // static
-                const gravity_delta_velocity = self.gravity.mulScalar(dt);
+            const gravity_delta_velocity = self.gravity.mulScalar(dt);
             body.velocity = body.velocity.add(&gravity_delta_velocity);
         }
     }
