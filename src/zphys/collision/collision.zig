@@ -1,6 +1,6 @@
 const std = @import("std");
 const math = @import("math");
-const Body = @import("../body.zig").Body;
+const Body = @import("../body.zig");
 
 const contact = @import("contact.zig");
 const sphere_sphere = @import("sphere_sphere.zig");
@@ -20,7 +20,7 @@ pub const satBoxBoxContact = sat.satBoxBoxContact;
 pub const ContactManifold = contact.ContactManifold;
 
 // Todo: Add BroadPhase collision check in here
-pub fn generateContacts(bodies: []const Body, contacts_out: *std.ArrayList(Contact), manifolds_out: *std.ArrayList(contact.ContactManifold)) void {
+pub fn generateContacts(bodies: []const Body.Body, contacts_out: *std.ArrayList(Contact), manifolds_out: *std.ArrayList(contact.ContactManifold)) void {
     var index_a: usize = 0;
     while (index_a < bodies.len) : (index_a += 1) {
         var index_b: usize = index_a + 1;
@@ -72,7 +72,7 @@ pub fn generateContacts(bodies: []const Body, contacts_out: *std.ArrayList(Conta
     }
 }
 
-pub fn solveVelocity(bodies: []Body, contacts: []const Contact, manifolds: []const ContactManifold, iterations: u32) void {
+pub fn solveVelocity(bodies: []Body.Body, contacts: []const Contact, manifolds: []const ContactManifold, iterations: u32) void {
     var iteration_index: u32 = 0;
     while (iteration_index < iterations) : (iteration_index += 1) {
         for (contacts) |contact_entry| {
@@ -95,7 +95,7 @@ pub fn solveVelocity(bodies: []Body, contacts: []const Contact, manifolds: []con
     }
 }
 
-inline fn solveContactPoint(body_a: *Body, body_b: *Body, contact_normal: math.Vec3, point_world_a: math.Vec3, point_world_b: math.Vec3, penetration: f32) void {
+inline fn solveContactPoint(body_a: *Body.Body, body_b: *Body.Body, contact_normal: math.Vec3, point_world_a: math.Vec3, point_world_b: math.Vec3, penetration: f32) void {
     const penetration_slop: f32 = 0.003;
 
     // Compute lever arms from body centers to contact points (world space)
@@ -173,7 +173,28 @@ inline fn solveContactPoint(body_a: *Body, body_b: *Body, contact_normal: math.V
     body_b.angularVelocity = body_b.angularVelocity.add(&delta_omega_b_t);
 }
 
-inline fn computeInverseInertiaWorld(body: *const Body) math.Mat3x3 {
+/// Solve Jacobian constraint(-n, -(r_1 x n, n, r_2 x n)
+inline fn solveContactConstraint(constraint: *contact.PenetrationConstraint, motionA: *Body.MotionComp, motionB: *Body.MotionComp) void {
+    var jv = constraint.n.Dot(&motionB.velocity.sub(&motionA.velocity));
+    jv -= constraint.r1.Dot(&motionA.angularVelocity);
+    jv += constraint.r2.Dot(&motionB.angularVelocity);
+
+    var impulse = -constraint.inverse_effective_mass * (jv + constraint.velocity_bias);
+    const total_impulse = constraint.accumulated_impulse + impulse;
+    total_impulse = std.math.clamp(f32, 0.0, total_impulse);
+
+    impulse = total_impulse - constraint.accumulated_impulse;
+    constraint.accumulated_impulse = total_impulse;
+    // integrate velocity
+    if (impulse != 0) {
+        motionA.velocity.sub(&constraint.n.mulScalar(impulse * constraint.inv_mass_a));
+        motionA.angularVelocity.sub(&constraint.invert_inertia_n_x_r1.mulScalar(impulse));
+        motionB.velocity.add(&constraint.n.mulScalar(impulse * constraint.inv_mass_b));
+        motionB.angularVelocity.add(&constraint.invert_inertia_n_x_r2.mulScalar(impulse));
+    }
+}
+
+inline fn computeInverseInertiaWorld(body: *const Body.Body) math.Mat3x3 {
     // Build world-space inverse inertia once from local and orientation
     const q = body.orientation.normalize();
     const rot4 = math.Mat4x4.rotateByQuaternion(q);
@@ -195,7 +216,7 @@ inline fn effectiveMass(dir: math.Vec3, inv_mass: f32, inv_inertia_world: math.M
     return inv_mass + lever_arm.dot(&angular_component);
 }
 
-pub fn solvePosition(bodies: []Body, contacts: []const Contact, manifolds: []const ContactManifold) void {
+pub fn solvePosition(bodies: []Body.Body, contacts: []const Contact, manifolds: []const ContactManifold) void {
     const correction_percent: f32 = 0.2;
     const penetration_slop: f32 = 0.02;
 

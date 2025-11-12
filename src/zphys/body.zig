@@ -33,11 +33,21 @@ pub const BodyDef = struct {
     }
 };
 
+pub const MotionComp = struct {
+    angularVelocity: math.Vec3,
+    velocity: math.Vec3,
+};
+
+pub const LocationComp = struct {
+    orientation: math.Quat,
+    position: math.Vec3,
+};
+
 pub const Body = struct {
     angularVelocity: math.Vec3,
-    orientation: math.Quat,
-
     velocity: math.Vec3,
+
+    orientation: math.Quat,
     position: math.Vec3,
 
     inverseInertia: math.Mat3x3,
