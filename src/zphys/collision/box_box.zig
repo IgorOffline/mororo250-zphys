@@ -1,19 +1,28 @@
 const std = @import("std");
 const math = @import("math");
-const Body = @import("../body.zig").Body;
+const TransformComp = @import("../body.zig").TransformComp;
+const Shape = @import("shape.zig").Shape;
 const contact = @import("contact.zig");
 const gjk = @import("gjk.zig");
 const epa = @import("epa.zig");
 const sat = @import("sat.zig");
 const manifold_between_two_faces = @import("manifold_between_two_faces.zig");
 
-pub fn collideBoxBox(a_id: u32, body_a: *const Body, b_id: u32, body_b: *const Body, out: *std.ArrayList(contact.ContactManifold)) void {
-    const box_a = body_a.shape.Box;
-    const box_b = body_b.shape.Box;
+pub fn collideBoxBox(
+    a_id: u32, 
+    transform_a: TransformComp, 
+    shape_a: Shape,
+    b_id: u32, 
+    transform_b: TransformComp, 
+    shape_b: Shape,
+    out: *std.ArrayList(contact.ContactManifold)
+) void {
+    const box_a = shape_a.Box;
+    const box_b = shape_b.Box;
 
     // GJK for detection
-    const shape_a = gjk.GjkBox{ .center = body_a.position, .orientation = body_a.orientation, .half_extents = box_a.half_extents };
-    const shape_b = gjk.GjkBox{ .center = body_b.position, .orientation = body_b.orientation, .half_extents = box_b.half_extents };
+    const gjk_shape_a = gjk.GjkBox{ .center = transform_a.position, .orientation = transform_a.orientation, .half_extents = box_a.half_extents };
+    const gjk_shape_b = gjk.GjkBox{ .center = transform_b.position, .orientation = transform_b.orientation, .half_extents = box_b.half_extents };
 
     // CSO (A − B) and support-point buffers:
     // - For box–box, the CSO can have up to 16 vertices in general position.
@@ -26,19 +35,19 @@ pub fn collideBoxBox(a_id: u32, body_a: *const Body, b_id: u32, body_b: *const B
     // Note: With V = 16, EPA's worst-case face count is F ≤ 2V − 4 = 28 (see epa.zig).
     const simplex_arrays: [3][]math.Vec3 = .{ minkowski_points[0..], shape_a_points[0..], shape_b_points[0..] };
 
-    const intersects = gjk.gjkIntersect(simplex_arrays, shape_a, shape_b);
+    const intersects = gjk.gjkIntersect(simplex_arrays, gjk_shape_a, gjk_shape_b);
     if (!intersects) return;
 
-    const epa_result = epa.epa(simplex_arrays, shape_a, shape_b);
+    const epa_result = epa.epa(simplex_arrays, gjk_shape_a, gjk_shape_b);
 
     var penetration_axis = epa_result.penetration_axis;
-    const delta_centers = body_b.position.sub(&body_a.position);
+    const delta_centers = transform_b.position.sub(&transform_a.position);
     if (delta_centers.dot(&penetration_axis) < 0) {
         penetration_axis = penetration_axis.negate();
     }
 
-    const face_a = shape_a.getSupportFace(penetration_axis);
-    const face_b = shape_b.getSupportFace(penetration_axis.negate());
+    const face_a = gjk_shape_a.getSupportFace(penetration_axis);
+    const face_b = gjk_shape_b.getSupportFace(penetration_axis.negate());
 
     const max_length = face_a.len + face_b.len;
     var face_a_contact_points: [max_length]math.Vec3 = undefined;

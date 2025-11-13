@@ -148,10 +148,12 @@ pub fn main() !void {
             camera.begin();
             defer camera.end();
 
-            for (world.bodies.items) |body| {
-                const trans_mat = math.Mat4x4.translate(body.position);
-                const rot_mat = math.Mat4x4.rotateByQuaternion(body.orientation.normalize());
-                switch (body.shape) {
+            for (0..world.bodyCount()) |i| {
+                const transform = world.getTransform(i);
+                const shape = world.getShape(i);
+                const trans_mat = math.Mat4x4.translate(transform.position);
+                const rot_mat = math.Mat4x4.rotateByQuaternion(transform.orientation.normalize());
+                switch (shape) {
                     .Box => |bx| {
                         const scale = bx.half_extents.mulScalar(2);
                         const scale_mat = math.Mat4x4.scale(scale);
@@ -166,25 +168,25 @@ pub fn main() !void {
                         rl.drawMesh(sphere_model.meshes[0], sphere_model.materials[0], rl_matrix);
                     },
                     .Line => |ln| {
-                        const p1_local = ln.point_a.mulQuat(&body.orientation);
-                        const p2_local = ln.point_b.mulQuat(&body.orientation);
+                        const p1_local = ln.point_a.mulQuat(&transform.orientation);
+                        const p2_local = ln.point_b.mulQuat(&transform.orientation);
                         const p1 = rl.Vector3.init(
-                            body.position.x() + p1_local.x(),
-                            body.position.y() + p1_local.y(),
-                            body.position.z() + p1_local.z(),
+                            transform.position.x() + p1_local.x(),
+                            transform.position.y() + p1_local.y(),
+                            transform.position.z() + p1_local.z(),
                         );
                         const p2 = rl.Vector3.init(
-                            body.position.x() + p2_local.x(),
-                            body.position.y() + p2_local.y(),
-                            body.position.z() + p2_local.z(),
+                            transform.position.x() + p2_local.x(),
+                            transform.position.y() + p2_local.y(),
+                            transform.position.z() + p2_local.z(),
                         );
                         rl.drawLine3D(p1, p2, .black);
                     },
                 }
             }
 
-            DebugRenderer.drawContacts(world.temp.contactSlice(), world.bodies.items);
-            DebugRenderer.drawManifolds(world.temp.manifoldSlice(), world.bodies.items);
+            DebugRenderer.drawContacts(world.temp.contactSlice());
+            DebugRenderer.drawManifolds(world.temp.manifoldSlice());
 
             rl.drawGrid(10, 1);
         }

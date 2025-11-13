@@ -13,8 +13,7 @@ pub const DebugRenderer = struct {
         rl.drawCylinderEx(start, end, thickness, thickness, 6, color);
     }
     
-    pub fn drawContacts(contacts: []const zphys.Contact.Contact, bodies: []const zphys.Body) void {
-        _ = bodies;
+    pub fn drawContacts(contacts: []const zphys.Contact.Contact) void {
         for (contacts) |contact| {
             const point_a_rl = rl.Vector3.init(contact.point_a.x(), contact.point_a.y(), contact.point_a.z());
             const point_b_rl = rl.Vector3.init(contact.point_b.x(), contact.point_b.y(), contact.point_b.z());
@@ -28,8 +27,7 @@ pub const DebugRenderer = struct {
         }
     }
     
-    pub fn drawManifolds(manifolds: []const zphys.Contact.ContactManifold, bodies: []const zphys.Body) void {
-        _ = bodies;
+    pub fn drawManifolds(manifolds: []const zphys.Contact.ContactManifold) void {
         for (manifolds) |manifold| {
             var world_points_a: [4]rl.Vector3 = undefined;
             var world_points_b: [4]rl.Vector3 = undefined;

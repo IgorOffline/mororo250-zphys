@@ -1,13 +1,18 @@
 const std = @import("std");
 const math = @import("math");
-const Body = @import("body.zig").Body;
-const BodyDef = @import("body.zig").BodyDef;
+const body_module = @import("body.zig");
+const BodyDef = body_module.BodyDef;
+const BodyComponents = body_module.BodyComponents;
+const MotionComp = body_module.MotionComp;
+const TransformComp = body_module.TransformComp;
+const PhysicsPropsComp = body_module.PhysicsPropsComp;
+const Shape = @import("collision/shape.zig").Shape;
 const collision = @import("collision/collision.zig");
 
 // Todo: Separate static bodies into different list for optimization reasons
 pub const World = struct {
     allocator: std.mem.Allocator,
-    bodies: std.ArrayList(Body),
+    bodies: std.MultiArrayList(BodyComponents),
     gravity: math.Vec3,
     temp: WorldTemp,
 
@@ -29,50 +34,38 @@ pub const World = struct {
         self.bodies.deinit(self.allocator);
     }
 
+    pub fn bodyCount(self: *const World) usize {
+        return self.bodies.len;
+    }
+
+    pub fn getMotion(self: *const World, index: usize) MotionComp {
+        return self.bodies.items(.motion)[index];
+    }
+
+    pub fn getTransform(self: *const World, index: usize) TransformComp {
+        return self.bodies.items(.transform)[index];
+    }
+
+    pub fn getPhysicsProps(self: *const World, index: usize) PhysicsPropsComp {
+        return self.bodies.items(.physics_props)[index];
+    }
+
+    pub fn getShape(self: *const World, index: usize) Shape {
+        return self.bodies.items(.shape)[index];
+    }
+
     pub fn createBody(self: *World, def: BodyDef) !u32 {
-        const id: u32 = @intCast(self.bodies.items.len);
+        const id: u32 = @intCast(self.bodies.len);
 
-        var body = Body.fromDef(def);
+        const components = body_module.componentsFromDef(def);
+        
+        try self.bodies.append(self.allocator, .{
+            .motion = components[0],
+            .transform = components[1],
+            .physics_props = components[2],
+            .shape = components[3],
+        });
 
-        var inv_local = math.Mat3x3.init(&math.vec3(0, 0, 0), &math.vec3(0, 0, 0), &math.vec3(0, 0, 0));
-        if (body.inverseMass != 0) {
-            switch (def.shape) {
-                .Sphere => |s| {
-                    const r2: f32 = s.radius * s.radius;
-                    const I: f32 = (2.0 / 5.0) * def.inverseMass * r2;
-                    const invI: f32 = if (I > 0) 1.0 / I else 0.0;
-                    inv_local = math.Mat3x3.init(
-                        &math.vec3(invI, 0, 0),
-                        &math.vec3(0, invI, 0),
-                        &math.vec3(0, 0, invI),
-                    );
-                },
-                .Box => |b| {
-                    const coef = def.inverseMass / 12.0;
-                    const xlength = 2 * b.half_extents.x();
-                    const ylength = 2 * b.half_extents.y();
-                    const zlength = 2 * b.half_extents.z();
-                    const Ixx: f32 = coef * (ylength * ylength + zlength * zlength);
-                    const Iyy: f32 = coef * (xlength * xlength + zlength * zlength);
-                    const Izz: f32 = coef * (xlength * xlength + ylength * ylength);
-                    const invIxx: f32 = if (Ixx > 0) 1.0 / Ixx else 0.0;
-                    const invIyy: f32 = if (Iyy > 0) 1.0 / Iyy else 0.0;
-                    const invIzz: f32 = if (Izz > 0) 1.0 / Izz else 0.0;
-                    inv_local = math.Mat3x3.init(
-                        &math.vec3(invIxx, 0, 0),
-                        &math.vec3(0, invIyy, 0),
-                        &math.vec3(0, 0, invIzz),
-                    );
-                },
-                else => {
-                    unreachable;
-                },
-            }
-        }
-
-        body.inverseInertia = inv_local;
-
-        try self.bodies.append(self.allocator, body);
         return id;
     }
 
@@ -81,7 +74,7 @@ pub const World = struct {
         const dt: f32 = timestep / @as(f32, @floatFromInt(substep_count));
 
         var substep_index: u16 = 0;
-        try self.temp.ensureCapacity(self.bodies.items.len);
+        try self.temp.ensureCapacity(self.bodyCount());
         while (substep_index < substep_count) : (substep_index += 1) {
             substep(self, dt);
         }
@@ -91,42 +84,62 @@ pub const World = struct {
         applyGravity(self, dt);
 
         self.temp.clear();
-        collision.generateContacts(self.bodies.items, &self.temp.contacts, &self.temp.manifolds);
-        collision.solveVelocity(self.bodies.items, self.temp.contactSlice(), self.temp.manifoldSlice(), 10);
+        
+        // Pass component slices directly to collision system
+        collision.generateContacts(
+            self.bodies.slice(),
+            &self.temp.contacts,
+            &self.temp.manifolds
+        );
+        
+        collision.solveVelocity(
+            self.bodies.slice(),
+            self.temp.contactSlice(),
+            self.temp.manifoldSlice(),
+            10
+        );
 
         integratePositions(self, dt);
 
-        var i: usize = 0;
-        while (i < 10) : (i += 1) {
-            collision.solvePosition(self.bodies.items, self.temp.contactSlice(), self.temp.manifoldSlice());
-        }
+        collision.solvePosition(
+            self.bodies.slice(),
+            self.temp.contactSlice(),
+            self.temp.manifoldSlice(),
+            10
+        );
     }
 
     fn applyGravity(self: *World, dt: f32) void {
-        var body_index: u16 = 0;
-        while (body_index < self.bodies.items.len) : (body_index += 1) {
-            var body = &self.bodies.items[body_index];
-            if (body.inverseMass == 0) continue; // static
+        const motion = self.bodies.items(.motion);
+        const physics_props = self.bodies.items(.physics_props);
+        
+        for (0..self.bodyCount()) |i| {
+            if (physics_props[i].inverseMass == 0) continue; // static
             const gravity_delta_velocity = self.gravity.mulScalar(dt);
-            body.velocity = body.velocity.add(&gravity_delta_velocity);
+            motion[i].velocity = motion[i].velocity.add(&gravity_delta_velocity);
         }
     }
 
     fn integratePositions(self: *World, dt: f32) void {
-        for (0..self.bodies.items.len) |body_index| {
-            var body = &self.bodies.items[body_index];
-            if (body.inverseMass == 0) continue;
-            const position_delta = body.velocity.mulScalar(dt);
-            body.position = body.position.add(&position_delta);
+        const motion = self.bodies.items(.motion);
+        const transform = self.bodies.items(.transform);
+        const physics_props = self.bodies.items(.physics_props);
+        
+        for (0..self.bodyCount()) |i| {
+            // Todo: Separate static and dynamic object into different lists. This way we wont need physcs probs in here
+            if (physics_props[i].inverseMass == 0) continue;
+            
+            const position_delta = motion[i].velocity.mulScalar(dt);
+            transform[i].position = transform[i].position.add(&position_delta);
 
-            const omega = body.angularVelocity;
+            const omega = motion[i].angularVelocity;
             const omega_len2 = omega.len2();
             if (omega_len2 > 1e-12) {
                 const omega_len = std.math.sqrt(omega_len2);
                 const axis = omega.mulScalar(1.0 / omega_len);
                 const angle = omega_len * dt;
                 const dq = math.Quat.fromAxisAngle(axis, angle);
-                body.orientation = math.Quat.mul(&dq, &body.orientation).normalize();
+                transform[i].orientation = math.Quat.mul(&dq, &transform[i].orientation).normalize();
             }
         }
     }

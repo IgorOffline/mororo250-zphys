@@ -1,15 +1,24 @@
 const std = @import("std");
 const math = @import("math");
-const Body = @import("../body.zig").Body;
+const TransformComp = @import("../body.zig").TransformComp;
+const Shape = @import("shape.zig").Shape;
 const contact = @import("contact.zig");
 
 // Expects: A is Sphere, B is Box
-pub fn collideSphereBox(a_id: u32, sphere_body: *const Body, b_id: u32, box_body: *const Body, out: *std.ArrayList(contact.Contact)) void {
-    const sphere = sphere_body.shape.Sphere;
-    const box = box_body.shape.Box;
+pub fn collideSphereBox(
+    a_id: u32, 
+    transform_a: TransformComp, 
+    shape_a: Shape,
+    b_id: u32, 
+    transform_b: TransformComp, 
+    shape_b: Shape,
+    out: *std.ArrayList(contact.Contact)
+) void {
+    const sphere = shape_a.Sphere;
+    const box = shape_b.Box;
 
-    const closest = closestPointOnOBB(sphere_body.position, box_body.position, box_body.orientation, box.half_extents);
-    const vector_box_to_sphere = closest.sub(&sphere_body.position);
+    const closest = closestPointOnOBB(transform_a.position, transform_b.position, transform_b.orientation, box.half_extents);
+    const vector_box_to_sphere = closest.sub(&transform_a.position);
     const distance_squared = vector_box_to_sphere.len2();
 
     if (distance_squared > sphere.radius * sphere.radius) return;
@@ -26,7 +35,7 @@ pub fn collideSphereBox(a_id: u32, sphere_body: *const Body, b_id: u32, box_body
     const penetration = sphere.radius - distance;
 
     // Contact points stored in world space
-    const point_a = sphere_body.position.add(&normal.negate().mulScalar(sphere.radius));
+    const point_a = transform_a.position.add(&normal.negate().mulScalar(sphere.radius));
     const point_b = closest;
 
     out.appendAssumeCapacity(.{
