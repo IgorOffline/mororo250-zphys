@@ -115,143 +115,6 @@ pub fn generateContacts(
     }
 }
 
-pub fn solveVelocity(
-    bodies: std.MultiArrayList(BodyComponents).Slice,
-    contacts: []const Contact,
-    manifolds: []const ContactManifold,
-    iterations: u32
-) void {
-    const motion = bodies.items(.motion);
-    const transform = bodies.items(.transform);
-    const physics_props = bodies.items(.physics_props);
-    
-    var iteration_index: u32 = 0;
-    while (iteration_index < iterations) : (iteration_index += 1) {
-        for (contacts) |contact_entry| {
-            const contact_normal = contact_entry.normal.normalize(0);
-            solveContactPoint(
-                &motion[contact_entry.body_a],
-                &motion[contact_entry.body_b],
-                transform[contact_entry.body_a],
-                transform[contact_entry.body_b],
-                physics_props[contact_entry.body_a],
-                physics_props[contact_entry.body_b],
-                contact_normal,
-                contact_entry.point_a,
-                contact_entry.point_b,
-                contact_entry.penetration
-            );
-        }
-
-        for (manifolds) |manifold| {
-            const contact_normal = manifold.normal.normalize(0);
-            for (0..manifold.length) |i| {
-                solveContactPoint(
-                    &motion[manifold.body_a],
-                    &motion[manifold.body_b],
-                    transform[manifold.body_a],
-                    transform[manifold.body_b],
-                    physics_props[manifold.body_a],
-                    physics_props[manifold.body_b],
-                    contact_normal,
-                    manifold.contact_points_a[i],
-                    manifold.contact_points_b[i],
-                    manifold.penetration_depth
-                );
-            }
-        }
-    }
-}
-
-inline fn solveContactPoint(
-    motion_a: *MotionComp,
-    motion_b: *MotionComp,
-    transform_a: TransformComp,
-    transform_b: TransformComp,
-    physics_props_a: PhysicsPropsComp,
-    physics_props_b: PhysicsPropsComp,
-    contact_normal: math.Vec3,
-    point_world_a: math.Vec3,
-    point_world_b: math.Vec3,
-    penetration: f32
-) void {
-    const penetration_slop: f32 = 0.003;
-
-    // Compute lever arms from body centers to contact points (world space)
-    const r_a_world = point_world_a.sub(&transform_a.position);
-    const r_b_world = point_world_b.sub(&transform_b.position);
-    const vel_a = motion_a.velocity.add(&motion_a.angularVelocity.cross(&r_a_world));
-    const vel_b = motion_b.velocity.add(&motion_b.angularVelocity.cross(&r_b_world));
-    const relative_velocity = vel_b.sub(&vel_a);
-    const velocity_along_normal = relative_velocity.dot(&contact_normal);
-
-    const corrected_penetration = @max(penetration - penetration_slop, 0.0);
-    // skip when objects are moving apart and barely touching
-    if (velocity_along_normal > 0 and corrected_penetration <= 0) return;
-
-    // Restitution only on closing velocity
-    const restitution = if (velocity_along_normal < -0.5) @max(physics_props_a.restitution, physics_props_b.restitution) else 0.0;
-
-    const inv_mass_a = physics_props_a.inverseMass;
-    const inv_mass_b = physics_props_b.inverseMass;
-    const inv_inertia_world_a = computeInverseInertiaWorld(transform_a, physics_props_a);
-    const inv_inertia_world_b = computeInverseInertiaWorld(transform_b, physics_props_b);
-
-    // Normal impulse (include restitution + bias)
-    const k_a_n = effectiveMass(contact_normal, inv_mass_a, inv_inertia_world_a, r_a_world);
-    const k_b_n = effectiveMass(contact_normal, inv_mass_b, inv_inertia_world_b, r_b_world);
-    const k_n = k_a_n + k_b_n;
-    if (k_n <= 0) return;
-    var normal_impulse_magnitude = (-(1.0 + restitution) * velocity_along_normal) / k_n;
-    if (normal_impulse_magnitude < 0) normal_impulse_magnitude = 0;
-
-    if (normal_impulse_magnitude > 0) {
-        const normal_impulse = contact_normal.mulScalar(normal_impulse_magnitude);
-        motion_a.velocity = motion_a.velocity.sub(&normal_impulse.mulScalar(inv_mass_a));
-        motion_b.velocity = motion_b.velocity.add(&normal_impulse.mulScalar(inv_mass_b));
-
-        const angular_impulse_a = r_a_world.cross(&normal_impulse);
-        const delta_omega_a = inv_inertia_world_a.mulVec(&angular_impulse_a);
-        motion_a.angularVelocity = motion_a.angularVelocity.sub(&delta_omega_a);
-
-        const angular_impulse_b = r_b_world.cross(&normal_impulse);
-        const delta_omega_b = inv_inertia_world_b.mulVec(&angular_impulse_b);
-        motion_b.angularVelocity = motion_b.angularVelocity.add(&delta_omega_b);
-    }
-
-    // Friction (Coulomb, clamped by mu * |jn|)
-    var vel_tan = relative_velocity.sub(&contact_normal.mulScalar(relative_velocity.dot(&contact_normal)));
-    const tangent_len2 = vel_tan.len2();
-    if (tangent_len2 <= 1e-12) return;
-    vel_tan = vel_tan.normalize(math.eps_f32);
-
-    // Effective mass in tangent direction
-    const k_a_t = effectiveMass(vel_tan, inv_mass_a, inv_inertia_world_a, r_a_world);
-    const k_b_t = effectiveMass(vel_tan, inv_mass_b, inv_inertia_world_b, r_b_world);
-    const k_t = k_a_t + k_b_t;
-    const tangential_impulse_magnitude = -(relative_velocity.dot(&vel_tan)) / k_t;
-    const friction_coefficient = std.math.sqrt(@max(physics_props_a.friction, 0) * @max(physics_props_b.friction, 0));
-
-    const max_friction = friction_coefficient * normal_impulse_magnitude;
-    var clamped_tangential_impulse = tangential_impulse_magnitude;
-    if (clamped_tangential_impulse > max_friction) clamped_tangential_impulse = max_friction;
-    if (clamped_tangential_impulse < -max_friction) clamped_tangential_impulse = -max_friction;
-
-    const tangential_impulse = vel_tan.mulScalar(clamped_tangential_impulse);
-
-    // Linear friction impulses
-    motion_a.velocity = motion_a.velocity.sub(&tangential_impulse.mulScalar(inv_mass_a));
-    motion_b.velocity = motion_b.velocity.add(&tangential_impulse.mulScalar(inv_mass_b));
-
-    // Angular friction impulses
-    const angular_impulse_a_t = r_a_world.cross(&tangential_impulse);
-    const delta_omega_a_t = inv_inertia_world_a.mulVec(&angular_impulse_a_t);
-    motion_a.angularVelocity = motion_a.angularVelocity.sub(&delta_omega_a_t);
-    const angular_impulse_b_t = r_b_world.cross(&tangential_impulse);
-    const delta_omega_b_t = inv_inertia_world_b.mulVec(&angular_impulse_b_t);
-    motion_b.angularVelocity = motion_b.angularVelocity.add(&delta_omega_b_t);
-}
-
 /// Build penetration constraints from contacts
 pub fn buildPenetrationConstraints(
     bodies: std.MultiArrayList(body_module.BodyComponents).Slice,
@@ -381,6 +244,8 @@ inline fn effectiveMass(dir: math.Vec3, inv_mass: f32, inv_inertia_world: math.M
     return inv_mass + lever_arm.dot(&angular_component);
 }
 
+
+// Todo: This position solver needs some work
 pub fn solvePosition(
     bodies: std.MultiArrayList(BodyComponents).Slice,
     contacts: []const Contact,

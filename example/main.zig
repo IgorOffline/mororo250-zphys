@@ -42,16 +42,18 @@ pub fn main() !void {
     ground.restitution = 0.2;
     _ = try world.createBody(ground);
 
-    //var i: i32 = 0;
-    //while (i < 3) : (i += 1) {
-    //    var d = zphys.BodyDef.default();
-    //    d.shape = zphys.shape.newSphere(0.5);
-    //    d.position = math.vec3(0, 3 + @as(f32, @floatFromInt(i)) * 1.1, 0);
-    //    d.mass = 1.0;
-    //    d.friction = 0.4;
-    //    d.restitution = 0.6;
-    //    _ = try world.createBody(d);
-    //}
+    {
+        var i: i32 = 0;
+        while (i < 3) : (i += 1) {
+            var d = zphys.BodyDef.default();
+            d.shape = zphys.shape.newSphere(0.5);
+            d.position = math.vec3(0, 3 + @as(f32, @floatFromInt(i)) * 1.1, 0);
+            d.inverseMass = 1.0;
+            d.friction = 0.4;
+            d.restitution = 0.6;
+            _ = try world.createBody(d);
+        }
+    }
 
     {
         var b1 = zphys.BodyDef.default();
@@ -62,13 +64,13 @@ pub fn main() !void {
         b1.restitution = 0.3;
         _ = try world.createBody(b1);
 
-        //var b2 = zphys.BodyDef.default();
-        //b2.shape = zphys.shape.newBox(math.vec3(0.6, 0.4, 0.6));
-        //b2.position = math.vec3(1.8, 6.0, 0.1);
-        //b2.inverseMass = 1.0;
-        //b2.friction = 0.6;
-        //b2.restitution = 0.3;
-        //_ = try world.createBody(b2);
+        var b2 = zphys.BodyDef.default();
+        b2.shape = zphys.shape.newBox(math.vec3(0.6, 0.4, 0.6));
+        b2.position = math.vec3(1.8, 6.0, 0.1);
+        b2.inverseMass = 1.0;
+        b2.friction = 0.6;
+        b2.restitution = 0.3;
+        _ = try world.createBody(b2);
     }
 
     rl.disableCursor();
