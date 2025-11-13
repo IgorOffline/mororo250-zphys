@@ -111,7 +111,7 @@ pub fn Vec3(comptime Scalar: type) type {
 
         pub inline fn yz(v: *const VecN) Vec2(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [2]T{
-                @intFromEnum(VecComponent.t),
+                @intFromEnum(VecComponent.y),
                 @intFromEnum(VecComponent.z),
             }) };
         }
@@ -243,7 +243,7 @@ pub fn Vec4(comptime Scalar: type) type {
 
         pub inline fn yz(v: *const VecN) Vec2(Scalar) {
             return .{ .v = @shuffle(VecN.T, v.v, undefined, [2]T{
-                @intFromEnum(VecComponent.t),
+                @intFromEnum(VecComponent.y),
                 @intFromEnum(VecComponent.z),
             }) };
         }

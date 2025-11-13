@@ -7,7 +7,9 @@ const MotionComp = body_module.MotionComp;
 const TransformComp = body_module.TransformComp;
 const PhysicsPropsComp = body_module.PhysicsPropsComp;
 const Shape = @import("collision/shape.zig").Shape;
+const contact = @import("collision/contact.zig");
 const collision = @import("collision/collision.zig");
+const constraint = @import("constraint.zig");
 
 // Todo: Separate static bodies into different list for optimization reasons
 pub const World = struct {
@@ -66,6 +68,7 @@ pub const World = struct {
             .shape = components[3],
         });
 
+        try self.temp.ensureCapacity(self.bodyCount());
         return id;
     }
 
@@ -74,7 +77,6 @@ pub const World = struct {
         const dt: f32 = timestep / @as(f32, @floatFromInt(substep_count));
 
         var substep_index: u16 = 0;
-        try self.temp.ensureCapacity(self.bodyCount());
         while (substep_index < substep_count) : (substep_index += 1) {
             substep(self, dt);
         }
@@ -91,13 +93,15 @@ pub const World = struct {
             &self.temp.contacts,
             &self.temp.manifolds
         );
-        
-        collision.solveVelocity(
-            self.bodies.slice(),
-            self.temp.contactSlice(),
-            self.temp.manifoldSlice(),
-            10
-        );
+
+        collision.buildPenetrationConstraints(self.bodies.slice(), self.temp.contactSlice(), self.temp.manifoldSlice(), &self.temp.penetrationConstraints);
+        constraint.solveConstraints(self.bodies.items(.motion), self.temp.penetrationConstraints.items, 10);
+        //collision.solveVelocity(
+        //    self.bodies.slice(),
+        //    self.temp.contactSlice(),
+        //    self.temp.manifoldSlice(),
+        //    10
+        //);
 
         integratePositions(self, dt);
 
@@ -147,25 +151,29 @@ pub const World = struct {
 
 pub const WorldTemp = struct {
     allocator: std.mem.Allocator,
-    contacts: std.ArrayList(collision.Contact),
-    manifolds: std.ArrayList(collision.ContactManifold),
+    contacts: std.ArrayList(contact.Contact),
+    manifolds: std.ArrayList(contact.ContactManifold),
+    penetrationConstraints: std.ArrayList(contact.PenetrationConstraint),
 
     pub fn init(allocator: std.mem.Allocator) WorldTemp {
         return .{
             .allocator = allocator,
             .contacts = .{},
             .manifolds = .{},
+            .penetrationConstraints= .{},
         };
     }
 
     pub fn deinit(self: *WorldTemp) void {
         self.contacts.deinit(self.allocator);
         self.manifolds.deinit(self.allocator);
+        self.penetrationConstraints.deinit(self.allocator);
     }
 
     pub fn clear(self: *WorldTemp) void {
         self.contacts.clearRetainingCapacity();
         self.manifolds.clearRetainingCapacity();
+        self.penetrationConstraints.clearRetainingCapacity();
     }
 
     pub fn ensureCapacity(self: *WorldTemp, bodies_count: usize) !void {
@@ -173,13 +181,18 @@ pub const WorldTemp = struct {
         const max_pairs = bodies_count * (bodies_count - 1) / 2;
         try self.contacts.ensureTotalCapacity(self.allocator, max_pairs);
         try self.manifolds.ensureTotalCapacity(self.allocator, max_pairs);
+        try self.penetrationConstraints.ensureTotalCapacity(self.allocator, max_pairs * 4); // 4 = max number of manifolders
     }
 
-    pub fn contactSlice(self: *WorldTemp) []const collision.Contact {
+    pub fn contactSlice(self: *WorldTemp) []const contact.Contact {
         return self.contacts.items;
     }
 
-    pub fn manifoldSlice(self: *WorldTemp) []const collision.ContactManifold {
+    pub fn manifoldSlice(self: *WorldTemp) []const contact.ContactManifold {
         return self.manifolds.items;
+    }
+
+    pub fn penConstraintsSlice(self: *WorldTemp) []const contact.PenetrationConstraint {
+        return self.penetrationConstraints.items;
     }
 };

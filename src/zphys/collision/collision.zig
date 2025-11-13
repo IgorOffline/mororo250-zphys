@@ -20,7 +20,6 @@ pub const collideSphereSphere = sphere_sphere.collideSphereSphere;
 pub const collideSphereBox = sphere_box.collideSphereBox;
 pub const collideBoxBox = box_box.collideBoxBox;
 
-pub const gjkBoxesIntersect = gjk.gjkBoxesIntersect;
 pub const satBoxBoxContact = sat.satBoxBoxContact;
 pub const ContactManifold = contact.ContactManifold;
 
@@ -253,27 +252,112 @@ inline fn solveContactPoint(
     motion_b.angularVelocity = motion_b.angularVelocity.add(&delta_omega_b_t);
 }
 
-/// Solve Jacobian constraint(-n, -(r_1 x n, n, r_2 x n)
-inline fn solveContactConstraint(constraint: *contact.PenetrationConstraint, motionA: *.MotionComp, motionB: *.MotionComp) void {
-    var jv = constraint.n.Dot(&motionB.velocity.sub(&motionA.velocity));
-    jv -= constraint.r1.Dot(&motionA.angularVelocity);
-    jv += constraint.r2.Dot(&motionB.angularVelocity);
+/// Build penetration constraints from contacts
+pub fn buildPenetrationConstraints(
+    bodies: std.MultiArrayList(body_module.BodyComponents).Slice,
+    contacts: []const Contact,
+    manifolds: []const ContactManifold,
+    constraints_out: *std.ArrayList(contact.PenetrationConstraint)
+) void {
 
-    var impulse = -constraint.inverse_effective_mass * (jv + constraint.velocity_bias);
-    const total_impulse = constraint.accumulated_impulse + impulse;
-    total_impulse = std.math.clamp(f32, 0.0, total_impulse);
-
-    impulse = total_impulse - constraint.accumulated_impulse;
-    constraint.accumulated_impulse = total_impulse;
-    // integrate velocity
-    if (impulse != 0) {
-        motionA.velocity.sub(&constraint.n.mulScalar(impulse * constraint.inv_mass_a));
-        motionA.angularVelocity.sub(&constraint.invert_inertia_n_x_r1.mulScalar(impulse));
-        motionB.velocity.add(&constraint.n.mulScalar(impulse * constraint.inv_mass_b));
-        motionB.angularVelocity.add(&constraint.invert_inertia_n_x_r2.mulScalar(impulse));
+    
+    // Build constraints from individual contacts
+    for (contacts) |contact_entry| {
+        const constraint = buildPenetrationConstraint(
+            bodies,
+            contact_entry.point_a,
+            contact_entry.point_b,
+            contact_entry.normal,
+            contact_entry.body_a,
+            contact_entry.body_b,
+        );
+        constraints_out.appendAssumeCapacity(constraint);
+    }
+    
+    // Build constraints from manifolds
+    for (manifolds) |manifold| {
+        for (0..manifold.length) |i| {
+            const constraint = buildPenetrationConstraint(
+                bodies,
+                manifold.contact_points_a[i],
+                manifold.contact_points_b[i],
+                manifold.normal,
+                manifold.body_a,
+                manifold.body_b,
+            );
+            constraints_out.appendAssumeCapacity(constraint);
+        }
     }
 }
 
+
+/// Helper function to build a single penetration constraint
+inline fn buildPenetrationConstraint(
+    bodies: std.MultiArrayList(body_module.BodyComponents).Slice,
+    contact_point_a: math.Vec3,
+    contact_point_b: math.Vec3,
+    normal: math.Vec3,
+    body_a :u32,
+    body_b: u32,
+) contact.PenetrationConstraint {
+    const motion = bodies.items(.motion);
+    const transform = bodies.items(.transform);
+    const physics_props = bodies.items(.physics_props);
+
+    const motion_a: MotionComp = motion[body_a];
+    const motion_b: MotionComp = motion[body_b];
+    const transform_a: TransformComp = transform[body_a];
+    const transform_b: TransformComp = transform[body_b];
+    const physics_props_a: PhysicsPropsComp = physics_props[body_a];
+    const physics_props_b: PhysicsPropsComp = physics_props[body_b];
+
+    const r1 = contact_point_a.sub(&transform_a.position);
+    const r2 = contact_point_b.sub(&transform_b.position);
+    const n = normal.normalize(0);
+
+    const inv_mass_a = physics_props_a.inverseMass;
+    const inv_mass_b = physics_props_b.inverseMass;
+    const inv_inertia_a = computeInverseInertiaWorld(transform_a, physics_props_a);
+    const inv_inertia_b = computeInverseInertiaWorld(transform_b, physics_props_b);
+
+    // Precompute inverse inertia × (r × n)
+    const r1_cross_n = r1.cross(&n);
+    const r2_cross_n = r2.cross(&n);
+    const inv_inertia_r1_cross_n = inv_inertia_a.mulVec(&r1_cross_n);
+    const inv_inertia_r2_cross_n = inv_inertia_b.mulVec(&r2_cross_n);
+
+    // Compute effective mass
+    const k1 = inv_mass_a + inv_mass_b;
+    const k2 = inv_inertia_r1_cross_n.dot(&r1_cross_n);
+    const k3 = inv_inertia_r2_cross_n.dot(&r2_cross_n);
+    const inverse_effective_mass_val = k1 + k2 + k3;
+
+    // Velocity bias for restitution only
+    const vel_a = motion_a.velocity.add(&motion_a.angularVelocity.cross(&r1));
+    const vel_b = motion_b.velocity.add(&motion_b.angularVelocity.cross(&r2));
+    const relative_vel = vel_b.sub(&vel_a);
+    const closing_velocity = relative_vel.dot(&n);
+
+    const restitution = if (closing_velocity < -0.5) @max(physics_props_a.restitution, physics_props_b.restitution) else 0.0;
+
+    const velocity_bias_val = -restitution * closing_velocity;
+
+    // Note: velocity_bias in PenetrationConstraint is Vec3, storing scalar in x component
+    return .{
+        .r1 = r1,
+        .r2 = r2,
+        .n = n,
+        .velocity_bias = velocity_bias_val,
+        .invert_inertia_n_x_r1 = inv_inertia_r1_cross_n,
+        .invert_inertia_n_x_r2 = inv_inertia_r2_cross_n,
+        .inverse_effective_mass = if (inverse_effective_mass_val > 0) 1.0 / inverse_effective_mass_val else 0,
+        .accumulated_impulse = 0,
+        .inv_mass_a = inv_mass_a,
+        .inv_mass_b = inv_mass_b,
+        .body_a = body_a,
+        .body_b = body_b,
+    };
+}
 
 inline fn computeInverseInertiaWorld(transform: TransformComp, physics_props: PhysicsPropsComp) math.Mat3x3 {
     // Build world-space inverse inertia once from local and orientation
