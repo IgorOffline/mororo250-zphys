@@ -12,7 +12,7 @@ inline fn solveContactConstraint(constraint: *contact.PenetrationConstraint, mot
     jv += constraint.r2.cross(&constraint.n).dot(&motionB.angularVelocity);
 
     var impulse = -constraint.inverse_effective_mass * (jv - constraint.velocity_bias);
-    const new_accumulated = @max(0.0, constraint.accumulated_impulse + impulse);  // ✅ CORRECT
+    const new_accumulated = @max(0.0, constraint.accumulated_impulse + impulse);
     impulse = new_accumulated - constraint.accumulated_impulse;
     constraint.accumulated_impulse = new_accumulated;
 
