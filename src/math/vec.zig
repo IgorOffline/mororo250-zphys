@@ -146,6 +146,18 @@ pub fn Vec3(comptime Scalar: type) type {
             return s1.sub(&s2);
         }
 
+        // Todo: I believe this could be optimized
+        // Needs profiling and test
+        pub inline fn getNormalizePerpendicular(vector: *const VecN) VecN {
+            if (@abs(vector.v[0]) > @abs(vector.v[1])) {
+                const len = @sqrt(vector.v[0] * vector.v[0] + vector.v[2] * vector.v[2]);
+                return VecN.init(vector.v[2], 0.0, -vector.v[0]).divScalar(len);
+            } else {
+                const len = @sqrt(vector.v[1] * vector.v[1] + vector.v[2] * vector.v[2]);
+                return VecN.init(0.0, vector.v[2], -vector.v[1]).divScalar(len);
+            }
+        }
+
         /// Vector * Matrix multiplication
         pub inline fn mulMat(vector: *const VecN, matrix: *const mat.Mat3x3(T)) VecN {
             var result = [_]VecN.T{0} ** 3;

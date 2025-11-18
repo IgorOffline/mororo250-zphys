@@ -41,7 +41,11 @@ pub const PenetrationConstraint = struct {
     accumulated_impulse: f32,
     inv_mass_a: f32,
     inv_mass_b: f32,
+
+
     velocity_bias: f32, // Check slide 44 of Erin catto presentation: https://box2d.org/files/ErinCatto_ModelingAndSolvingConstraints_GDC2009.pdf -> treat bounce as velocity bias
+    surface_velocity_bias1: f32,
+    surface_velocity_bias2: f32,
 
     body_a: u32,
     body_b: u32,

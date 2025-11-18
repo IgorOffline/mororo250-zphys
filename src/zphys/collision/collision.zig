@@ -176,7 +176,6 @@ inline fn buildPenetrationConstraint(
 
     const r1 = contact_point_a.sub(&transform_a.position);
     const r2 = contact_point_b.sub(&transform_b.position);
-    const n = normal.normalize(0);
 
     const inv_mass_a = physics_props_a.inverseMass;
     const inv_mass_b = physics_props_b.inverseMass;
@@ -184,8 +183,8 @@ inline fn buildPenetrationConstraint(
     const inv_inertia_b = computeInverseInertiaWorld(transform_b, physics_props_b);
 
     // Precompute inverse inertia × (r × n)
-    const r1_cross_n = r1.cross(&n);
-    const r2_cross_n = r2.cross(&n);
+    const r1_cross_n = r1.cross(&normal);
+    const r2_cross_n = r2.cross(&normal);
     const inv_inertia_r1_cross_n = inv_inertia_a.mulVec(&r1_cross_n);
     const inv_inertia_r2_cross_n = inv_inertia_b.mulVec(&r2_cross_n);
 
@@ -196,21 +195,27 @@ inline fn buildPenetrationConstraint(
     const inverse_effective_mass_val = k1 + k2 + k3;
 
     // Velocity bias for restitution only
-    const vel_a = motion_a.velocity.add(&motion_a.angularVelocity.cross(&r1));
-    const vel_b = motion_b.velocity.add(&motion_b.angularVelocity.cross(&r2));
-    const relative_vel = vel_b.sub(&vel_a);
-    const closing_velocity = relative_vel.dot(&n);
+    const relative_vel = motion_b.velocity.sub(&motion_a.velocity);
+    const closing_velocity = relative_vel.dot(&normal);
 
     const restitution = if (closing_velocity < -0.5) @max(physics_props_a.restitution, physics_props_b.restitution) else 0.0;
+    const linear_velocity_bias = -restitution * closing_velocity;
 
-    const velocity_bias_val = -restitution * closing_velocity;
+    const out_tangent1 = normal.getNormalizePerpendicular();
+    const surface_velocity = motion_b.angularVelocity.sub(&motion_a.angularVelocity.cross(&r1));
+    const surface_velocity_bias1 = out_tangent1.dot(&surface_velocity);
+
+    const out_tangent2 = normal.cross(&out_tangent1);
+    const surface_velocity_bias2 = out_tangent2.dot(&surface_velocity);
 
     // Note: velocity_bias in PenetrationConstraint is Vec3, storing scalar in x component
     return .{
         .r1 = r1,
         .r2 = r2,
-        .n = n,
-        .velocity_bias = velocity_bias_val,
+        .n = normal,
+        .velocity_bias = linear_velocity_bias,
+        .surface_velocity_bias1 = surface_velocity_bias1,
+        .surface_velocity_bias2 = surface_velocity_bias2,
         .invert_inertia_n_x_r1 = inv_inertia_r1_cross_n,
         .invert_inertia_n_x_r2 = inv_inertia_r2_cross_n,
         .inverse_effective_mass = if (inverse_effective_mass_val > 0) 1.0 / inverse_effective_mass_val else 0,
