@@ -29,6 +29,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "zphys_basic", .source = "example/basic.zig", .option = "basic" },
         .{ .name = "zphys_friction", .source = "example/friction.zig", .option = "friction" },
         .{ .name = "zphys_pyramid", .source = "example/pyramid.zig", .option = "pyramid" },
+        .{ .name = "zphys_visualizer", .source = "example/gjk_epa_visualizer.zig", .option = "visualizer" },
     };
 
     // Create all example executables

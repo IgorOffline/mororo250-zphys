@@ -84,7 +84,7 @@ pub const BodyComponents = struct {
     shape: Shape,
 };
 
-pub fn componentsFromDef(def: BodyDef) struct { MotionComp, TransformComp, PhysicsPropsComp, Shape } {
+pub fn componentsFromDef(def: BodyDef) BodyComponents {
     const inverse_mass = if (def.inverseMass == 0) 0 else 1.0 / def.inverseMass;
     
     var inv_inertia_diagonal = math.vec3(0, 0, 0);
@@ -114,9 +114,9 @@ pub fn componentsFromDef(def: BodyDef) struct { MotionComp, TransformComp, Physi
     }
 
     return .{
-        MotionComp.fromDef(def),
-        TransformComp.fromDef(def),
-        PhysicsPropsComp.fromDef(def, inv_inertia_diagonal),
-        def.shape,
+        .motion = MotionComp.fromDef(def),
+        .physics_props = PhysicsPropsComp.fromDef(def, inv_inertia_diagonal),
+        .transform = TransformComp.fromDef(def),
+        .shape = def.shape,
     };
 }

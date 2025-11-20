@@ -60,13 +60,8 @@ pub const World = struct {
         const id: u32 = @intCast(self.bodies.len);
 
         const components = body_module.componentsFromDef(def);
-        
-        try self.bodies.append(self.allocator, .{
-            .motion = components[0],
-            .transform = components[1],
-            .physics_props = components[2],
-            .shape = components[3],
-        });
+
+        try self.bodies.append(self.allocator, components);
 
         try self.temp.ensureCapacity(self.bodyCount());
         return id;
@@ -84,10 +79,8 @@ pub const World = struct {
 
     pub fn substep(self: *World, dt: f32) void {
         applyGravity(self, dt);
-
         self.temp.clear();
         
-        // Pass component slices directly to collision system
         collision.generateContacts(
             self.bodies.slice(),
             &self.temp.contacts,
@@ -96,15 +89,8 @@ pub const World = struct {
 
         collision.buildPenetrationConstraints(self.bodies.slice(), self.temp.contactSlice(), self.temp.manifoldSlice(), &self.temp.penetrationConstraints);
         constraint.solveConstraints(self.bodies.items(.motion), self.temp.penetrationConstraints.items, 10);
-        //collision.solveVelocity(
-        //    self.bodies.slice(),
-        //    self.temp.contactSlice(),
-        //    self.temp.manifoldSlice(),
-        //    10
-        //);
 
         integratePositions(self, dt);
-
         collision.solvePosition(
             self.bodies.slice(),
             self.temp.contactSlice(),

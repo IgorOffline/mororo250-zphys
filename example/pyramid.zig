@@ -70,7 +70,6 @@ pub fn main() !void {
 
     while (!rl.windowShouldClose()) {
         camera.update(.free);
-
         if (rl.isKeyPressed(.space)) {
             paused = !paused;
         }
@@ -90,17 +89,15 @@ pub fn main() !void {
 
         rl.beginDrawing();
         defer rl.endDrawing();
+
         SceneRenderer.drawSky();
+        camera.begin();
+        defer camera.end();
 
-        {
-            camera.begin();
-            defer camera.end();
+        scene_renderer.drawWorld(&world);
 
-            scene_renderer.drawWorld(&world);
-            
-            // Draw contacts if needed, maybe too cluttered for pyramid
-            // DebugRenderer.drawContacts(world.temp.contactSlice());
-        }
+        // Draw contacts if needed, maybe too cluttered for pyramid
+        // DebugRenderer.drawContacts(world.temp.contactSlice());
         
         rl.drawText("Pyramid Stack Test", 20, 20, 20, .black);
         DebugRenderer.drawDebugInfo(paused);

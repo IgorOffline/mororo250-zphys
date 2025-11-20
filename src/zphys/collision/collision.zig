@@ -273,7 +273,7 @@ pub fn solvePosition(
         if (inv_mass_sum == 0) continue;
 
         const correction_magnitude = correction_percent * @max(contact_entry.penetration - penetration_slop, 0.0) / inv_mass_sum;
-        const correction = contact_entry.normal.normalize(0).mulScalar(correction_magnitude);
+        const correction = contact_entry.normal.normalize(math.eps_f32).mulScalar(correction_magnitude);
 
         transform[contact_entry.body_a].position = transform[contact_entry.body_a].position.sub(&correction.mulScalar(inv_mass_a));
         transform[contact_entry.body_b].position = transform[contact_entry.body_b].position.add(&correction.mulScalar(inv_mass_b));
@@ -286,7 +286,7 @@ pub fn solvePosition(
         if (inv_mass_sum == 0) continue;
 
         const correction_magnitude = correction_percent * @max(manifold.penetration_depth - penetration_slop, 0.0) / inv_mass_sum;
-        const correction = manifold.normal.normalize(0).mulScalar(correction_magnitude);
+        const correction = manifold.normal.normalize(math.eps_f32).mulScalar(correction_magnitude);
 
         transform[manifold.body_a].position = transform[manifold.body_a].position.sub(&correction.mulScalar(inv_mass_a));
         transform[manifold.body_b].position = transform[manifold.body_b].position.add(&correction.mulScalar(inv_mass_b));
