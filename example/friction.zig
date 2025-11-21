@@ -28,15 +28,17 @@ pub fn main() !void {
         app.beginDraw();
         app.drawScene();
 
-        rl.drawRectangle(10, 10, 320, 133, .fade(.sky_blue, 0.5));
-        rl.drawRectangleLines(10, 10, 320, 133, .blue);
+        if (app.show_ui) {
+            rl.drawRectangle(10, 10, 320, 133, .fade(.sky_blue, 0.5));
+            rl.drawRectangleLines(10, 10, 320, 133, .blue);
 
-        rl.drawText("Friction Test Scene", 20, 20, 10, .black);
-        rl.drawText("- Spheres (friction 0.0-0.8)", 40, 40, 10, .dark_gray);
-        rl.drawText("- Boxes (friction 0.0-0.8)", 40, 60, 10, .dark_gray);
-        rl.drawText("- Mouse Wheel to Zoom", 40, 80, 10, .dark_gray);
-        rl.drawText("- Mouse Wheel Pressed to Pan", 40, 100, 10, .dark_gray);
-        rl.drawText("- Z to zoom to (0, 0, 0)", 40, 120, 10, .dark_gray);
+            rl.drawText("Friction Test Scene", 20, 20, 10, .black);
+            rl.drawText("- Spheres (friction 0.0-0.8)", 40, 40, 10, .dark_gray);
+            rl.drawText("- Boxes (friction 0.0-0.8)", 40, 60, 10, .dark_gray);
+            rl.drawText("- Mouse Wheel to Zoom", 40, 80, 10, .dark_gray);
+            rl.drawText("- Mouse Wheel Pressed to Pan", 40, 100, 10, .dark_gray);
+            rl.drawText("- Z to zoom to (0, 0, 0)", 40, 120, 10, .dark_gray);
+        }
 
         app.endDraw();
     }

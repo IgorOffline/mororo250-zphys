@@ -21,7 +21,9 @@ pub fn main() !void {
         app.beginDraw();
         app.drawScene();
 
-        rl.drawText("Pyramid Stack Test", 20, 20, 20, .black);
+        if (app.show_ui) {
+            rl.drawText("Pyramid Stack Test", 20, 20, 20, .black);
+        }
 
         app.endDraw();
     }

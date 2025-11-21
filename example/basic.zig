@@ -28,13 +28,15 @@ pub fn main() !void {
         app.beginDraw();
         app.drawScene();
 
-        rl.drawRectangle(10, 10, 320, 93, .fade(.sky_blue, 0.5));
-        rl.drawRectangleLines(10, 10, 320, 93, .blue);
+        if (app.show_ui) {
+            rl.drawRectangle(10, 10, 320, 93, .fade(.sky_blue, 0.5));
+            rl.drawRectangleLines(10, 10, 320, 93, .blue);
 
-        rl.drawText("Free camera default controls:", 20, 20, 10, .black);
-        rl.drawText("- Mouse Wheel to Zoom in-out", 40, 40, 10, .dark_gray);
-        rl.drawText("- Mouse Wheel Pressed to Pan", 40, 60, 10, .dark_gray);
-        rl.drawText("- Z to zoom to (0, 0, 0)", 40, 80, 10, .dark_gray);
+            rl.drawText("Free camera default controls:", 20, 20, 10, .black);
+            rl.drawText("- Mouse Wheel to Zoom in-out", 40, 40, 10, .dark_gray);
+            rl.drawText("- Mouse Wheel Pressed to Pan", 40, 60, 10, .dark_gray);
+            rl.drawText("- Z to zoom to (0, 0, 0)", 40, 80, 10, .dark_gray);
+        }
 
         app.endDraw();
     }

@@ -12,6 +12,7 @@ pub const App = struct {
     paused: bool = false,
     step_one: bool = false,
     sub_steps: u16 = 1,
+    show_ui: bool = true,
 
     pub fn init(title: [:0]const u8) !App {
         const screenWidth = 1280;
@@ -53,6 +54,14 @@ pub const App = struct {
     pub fn update(self: *App) !void {
         self.camera.update(.free);
 
+        if (rl.isKeyPressed(.f11)) {
+            rl.toggleFullscreen();
+        }
+
+        if (rl.isKeyPressed(.h)) {
+            self.show_ui = !self.show_ui;
+        }
+
         if (rl.isKeyPressed(.space)) {
             self.paused = !self.paused;
         }
@@ -79,13 +88,17 @@ pub const App = struct {
 
     pub fn endDraw(self: *App) void {
         self.camera.end();
-        DebugRenderer.drawDebugInfo(self.paused);
+        if (self.show_ui) {
+            DebugRenderer.drawDebugInfo(self.paused);
+        }
         rl.endDrawing();
     }
 
     pub fn drawScene(self: *App) void {
         self.scene_renderer.drawWorld(&self.world);
-        DebugRenderer.drawContacts(self.world.temp.contactSlice());
-        DebugRenderer.drawManifolds(self.world.temp.manifoldSlice());
+        if (self.show_ui) {
+            DebugRenderer.drawContacts(self.world.temp.contactSlice());
+            DebugRenderer.drawManifolds(self.world.temp.manifoldSlice());
+        }
     }
 };
