@@ -2,27 +2,32 @@ const std = @import("std");
 const math = @import("math");
 const zphys = @import("zphys");
 const rl = @import("raylib");
-const DebugRenderer = @import("debug_renderer.zig").DebugRenderer;
-const SceneRenderer = @import("scene_renderer.zig").SceneRenderer;
+const App = @import("shared/app.zig").App;
 
 pub fn main() !void {
-    const screenWidth = 1280;
-    const screenHeight = 720;
+    var app = try App.init("zphys - Pyramid Stack");
+    defer app.deinit();
 
-    rl.initWindow(screenWidth, screenHeight, "zphys - Pyramid Stack");
-    defer rl.closeWindow();
+    // Custom camera setup
+    app.camera.position = .init(10, 10, 20);
+    app.camera.target = .init(0, 4, 0);
+    app.sub_steps = 4;
 
-    var camera = rl.Camera{
-        .position = .init(10, 10, 20),
-        .target = .init(0, 4, 0),
-        .up = .init(0, 1, 0),
-        .fovy = 45,
-        .projection = .perspective,
-    };
+    try createPyramid(&app.world);
 
-    var world = zphys.World.init(std.heap.page_allocator);
-    defer world.deinit();
+    while (!app.shouldClose()) {
+        try app.update();
 
+        app.beginDraw();
+        app.drawScene();
+
+        rl.drawText("Pyramid Stack Test", 20, 20, 20, .black);
+
+        app.endDraw();
+    }
+}
+
+fn createPyramid(world: *zphys.World) !void {
     // Ground
     var ground = zphys.BodyDef.default();
     ground.shape = zphys.shape.newBox(math.vec3(50, 1.0, 50));
@@ -53,53 +58,9 @@ pub fn main() !void {
             box.shape = zphys.shape.newBox(math.vec3(box_size * 0.5, box_size * 0.5, box_size * 0.5));
             box.position = math.vec3(x, level_y, 0);
             box.inverseMass = 1.0; // Dynamic
-            box.friction = 0.5;
+            box.friction = 1.0;
             box.restitution = 0.0;
             _ = try world.createBody(box);
         }
-    }
-
-    rl.disableCursor();
-    rl.setTargetFPS(60);
-
-    var paused: bool = false;
-    var step_one: bool = false;
-
-    var scene_renderer = try SceneRenderer.init();
-    defer scene_renderer.deinit();
-
-    while (!rl.windowShouldClose()) {
-        camera.update(.free);
-        if (rl.isKeyPressed(.space)) {
-            paused = !paused;
-        }
-        
-        if (rl.isKeyPressed(.right) and paused) {
-            step_one = true;
-        }
-
-        if (!paused or step_one) {
-            try world.step(1.0/60.0, 1);
-            step_one = false;
-        }
-
-        if (rl.isKeyPressed(.z)) {
-            camera.target = .init(0, 4, 0);
-        }
-
-        rl.beginDrawing();
-        defer rl.endDrawing();
-
-        SceneRenderer.drawSky();
-        camera.begin();
-        defer camera.end();
-
-        scene_renderer.drawWorld(&world);
-
-        // Draw contacts if needed, maybe too cluttered for pyramid
-        // DebugRenderer.drawContacts(world.temp.contactSlice());
-        
-        rl.drawText("Pyramid Stack Test", 20, 20, 20, .black);
-        DebugRenderer.drawDebugInfo(paused);
     }
 }

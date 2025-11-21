@@ -88,7 +88,7 @@ pub const World = struct {
         );
 
         collision.buildPenetrationConstraints(self.bodies.slice(), self.temp.contactSlice(), self.temp.manifoldSlice(), &self.temp.penetrationConstraints);
-        constraint.solveConstraints(self.bodies.items(.motion), self.temp.penetrationConstraints.items, 10);
+        constraint.solveConstraints(self.bodies.items(.motion), self.temp.penetrationConstraints.items, 90);
 
         integratePositions(self, dt);
         collision.solvePosition(

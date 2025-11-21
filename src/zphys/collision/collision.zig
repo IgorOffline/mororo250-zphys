@@ -11,8 +11,7 @@ const contact = @import("contact.zig");
 const sphere_sphere = @import("sphere_sphere.zig");
 const sphere_box = @import("sphere_box.zig");
 const box_box = @import("box_box.zig");
-const gjk = @import("gjk.zig");
-const sat = @import("sat.zig");
+pub const gjk = @import("gjk.zig");
 
 pub const Contact = contact.Contact;
 
@@ -20,7 +19,6 @@ pub const collideSphereSphere = sphere_sphere.collideSphereSphere;
 pub const collideSphereBox = sphere_box.collideSphereBox;
 pub const collideBoxBox = box_box.collideBoxBox;
 
-pub const satBoxBoxContact = sat.satBoxBoxContact;
 pub const ContactManifold = contact.ContactManifold;
 
 // Todo: Add BroadPhase collision check in here

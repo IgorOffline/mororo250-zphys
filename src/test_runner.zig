@@ -5,23 +5,7 @@ pub fn main() !void {
     var mem: [4096]u8 = undefined;
     var fpa = std.heap.FixedBufferAllocator.init(&mem);
     const allocator = fpa.allocator();
-    var it = try std.process.argsWithAllocator(allocator);
-    defer it.deinit();
-
-    var test_filter_opt: ?[]const u8 = null;
-    while (it.next()) |arg| {
-        if (std.mem.eql(u8, arg, "--test-filter")) {
-            if (it.next()) |value| {
-                test_filter_opt = try allocator.dupe(u8, value);
-            } else {
-                return error.MissingValueForTestFilter;
-            }
-        } else if (std.mem.startsWith(u8, arg, "--test-filter=")) {
-            test_filter_opt = arg["--test-filter=".len..];
-        } else {
-            // handle other args
-        }
-    }
+    const test_filter_opt = try parseArgs(allocator);
 
     var stderr_buf: [1024]u8 = undefined;
     var stderr_writter = std.fs.File.stderr().writer(&stderr_buf);
@@ -91,4 +75,25 @@ fn printRed(config: *const std.Io.tty.Config, writer: *std.Io.Writer, comptime m
     try writer.print(message, args);
     try config.setColor(writer, .white);
     try writer.flush();
+}
+
+fn parseArgs(allocator: std.mem.Allocator) !?[]const u8 {
+    var it = try std.process.argsWithAllocator(allocator);
+    defer it.deinit();
+
+    var test_filter_opt: ?[]const u8 = null;
+    while (it.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--test-filter")) {
+            if (it.next()) |value| {
+                test_filter_opt = try allocator.dupe(u8, value);
+            } else {
+                return error.MissingValueForTestFilter;
+            }
+        } else if (std.mem.startsWith(u8, arg, "--test-filter=")) {
+            test_filter_opt = arg["--test-filter=".len..];
+        } else {
+            // handle other args
+        }
+    }
+    return test_filter_opt;
 }

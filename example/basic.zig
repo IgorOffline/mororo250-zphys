@@ -2,9 +2,7 @@ const std = @import("std");
 const math = @import("math");
 const zphys = @import("zphys");
 const rl = @import("raylib");
-const DebugRenderer = @import("debug_renderer.zig").DebugRenderer;
-const raylibUtils = @import("raylibUtils.zig");
-const SceneRenderer = @import("scene_renderer.zig").SceneRenderer;
+const App = @import("shared/app.zig").App;
 
 pub fn main() !void {
     const a: math.Vec3 = math.vec3(1, 2, 3);
@@ -19,23 +17,30 @@ pub fn main() !void {
 
     std.debug.print("Example complete.\n", .{});
 
-    const screenWidth = 800;
-    const screenHeight = 450;
+    var app = try App.init("raylib [core] example - 3d camera free");
+    defer app.deinit();
 
-    rl.initWindow(screenWidth, screenHeight, "raylib [core] example - 3d camera free");
-    defer rl.closeWindow();
+    try createScene(&app.world);
 
-    var camera = rl.Camera{
-        .position = .init(10, 10, 10),
-        .target = .init(0, 0, 0),
-        .up = .init(0, 1, 0),
-        .fovy = 45,
-        .projection = .perspective,
-    };
+    while (!app.shouldClose()) {
+        try app.update();
 
-    var world = zphys.World.init(std.heap.page_allocator);
-    defer world.deinit();
+        app.beginDraw();
+        app.drawScene();
 
+        rl.drawRectangle(10, 10, 320, 93, .fade(.sky_blue, 0.5));
+        rl.drawRectangleLines(10, 10, 320, 93, .blue);
+
+        rl.drawText("Free camera default controls:", 20, 20, 10, .black);
+        rl.drawText("- Mouse Wheel to Zoom in-out", 40, 40, 10, .dark_gray);
+        rl.drawText("- Mouse Wheel Pressed to Pan", 40, 60, 10, .dark_gray);
+        rl.drawText("- Z to zoom to (0, 0, 0)", 40, 80, 10, .dark_gray);
+
+        app.endDraw();
+    }
+}
+
+fn createScene(world: *zphys.World) !void {
     var ground = zphys.BodyDef.default();
     ground.shape = zphys.shape.newBox(math.vec3(5, 0.5, 5));
     ground.position = math.vec3(0, -0.5, 0);
@@ -73,58 +78,5 @@ pub fn main() !void {
         b2.friction = 0.6;
         b2.restitution = 0.0;
         _ = try world.createBody(b2);
-    }
-
-    rl.disableCursor();
-    rl.setTargetFPS(60);
-
-    var paused: bool = false;
-    var step_one: bool = false;
-
-    var scene_renderer = try SceneRenderer.init();
-    defer scene_renderer.deinit();
-
-    while (!rl.windowShouldClose()) {
-        camera.update(.free);
-
-        if (rl.isKeyPressed(.space)) {
-            paused = !paused;
-        }
-        
-        if (rl.isKeyPressed(.right) and paused) {
-            step_one = true;
-        }
-
-        if (!paused or step_one) {
-            try world.step(1.0/60.0, 1);
-            step_one = false;
-        }
-
-        if (rl.isKeyPressed(.z)) {
-            camera.target = .init(0, 0, 0);
-        }
-        rl.beginDrawing();
-        defer rl.endDrawing();
-
-        SceneRenderer.drawSky();
-        {
-            camera.begin();
-            defer camera.end();
-
-            scene_renderer.drawWorld(&world);
-
-            DebugRenderer.drawContacts(world.temp.contactSlice());
-            DebugRenderer.drawManifolds(world.temp.manifoldSlice());
-        }
-
-        rl.drawRectangle(10, 10, 320, 93, .fade(.sky_blue, 0.5));
-        rl.drawRectangleLines(10, 10, 320, 93, .blue);
-
-        rl.drawText("Free camera default controls:", 20, 20, 10, .black);
-        rl.drawText("- Mouse Wheel to Zoom in-out", 40, 40, 10, .dark_gray);
-        rl.drawText("- Mouse Wheel Pressed to Pan", 40, 60, 10, .dark_gray);
-        rl.drawText("- Z to zoom to (0, 0, 0)", 40, 80, 10, .dark_gray);
-        
-        DebugRenderer.drawDebugInfo(paused);
     }
 }

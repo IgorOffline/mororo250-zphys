@@ -61,30 +61,20 @@ pub const SceneRenderer = struct {
             const props = world.getPhysicsProps(i);
             const trans_mat = math.Mat4x4.translate(transform.position);
             const rot_mat = math.Mat4x4.rotateByQuaternion(transform.orientation.normalize());
-            
-            // Determine Colors
-            var colorPrimary: rl.Color = undefined;   // colDiffuse
-            var colorSecondary: rl.Color = undefined; // colSecondary
+
+            var colorPrimary: rl.Color = undefined;
+            var colorSecondary: rl.Color = undefined;
             
             if (props.inverseMass == 0) {
                 colorPrimary = staticPrimary;
                 colorSecondary = staticSecondary;
             } else {
-                // Variable colors for dynamic bodies
-                // Shader uses Primary (White) for some checks, Secondary (Yellow) for others
                 colorPrimary = rl.Color.white;
                 colorSecondary = zigYellow;
             }
             
-            // Update colSecondary uniform
-            const colSecFloats = [_]f32{
-                @as(f32, @floatFromInt(colorSecondary.r)) / 255.0,
-                @as(f32, @floatFromInt(colorSecondary.g)) / 255.0,
-                @as(f32, @floatFromInt(colorSecondary.b)) / 255.0,
-                @as(f32, @floatFromInt(colorSecondary.a)) / 255.0,
-            };
+            const colSecFloats = raylibUtils.colorToFloatArray(colorSecondary);
             rl.setShaderValue(self.shader, self.colSecondaryLoc, &colSecFloats, .vec4);
-            
             const albedo_index: usize = @intFromEnum(rl.MaterialMapIndex.albedo);
 
             switch (shape) {
@@ -94,7 +84,6 @@ pub const SceneRenderer = struct {
                     const mat = trans_mat.mul(&rot_mat.mul(&scale_mat));
                     const rl_matrix = raylibUtils.mathMat4ToRayLib(mat);
                     
-                    // Update model primary color (diffuse) for this draw
                     self.cubeModel.materials[0].maps[albedo_index].color = colorPrimary;
                     rl.drawMesh(self.cubeModel.meshes[0], self.cubeModel.materials[0], rl_matrix);
                 },

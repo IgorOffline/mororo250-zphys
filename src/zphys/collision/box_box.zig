@@ -5,7 +5,6 @@ const Shape = @import("shape.zig").Shape;
 const contact = @import("contact.zig");
 const gjk = @import("gjk.zig");
 const epa = @import("epa.zig");
-const sat = @import("sat.zig");
 const manifold_between_two_faces = @import("manifold_between_two_faces.zig");
 
 pub fn collideBoxBox(
@@ -61,7 +60,6 @@ pub fn collideBoxBox(
         &face_a_contact_points,
         &face_b_contact_points,
     ) catch {
-        // Fallback: store world space points directly
         out.appendAssumeCapacity(.{
             .body_a = a_id,
             .body_b = b_id,
@@ -99,7 +97,6 @@ pub fn collideBoxBox(
         );
         manifold.length = @intCast(contact_points_a.len);
     } else {
-        // Copy directly when <= 4 points
         for (0..manifold_size) |i| {
             manifold.contact_points_a[i] = face_a_contact_points[i];
             manifold.contact_points_b[i] = face_b_contact_points[i];

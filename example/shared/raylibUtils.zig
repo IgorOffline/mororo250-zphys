@@ -22,3 +22,15 @@ pub fn mathMat4ToRayLib(math_mat: math.Mat4x4) rl.Matrix {
         .m15 = math_mat.v[3].v[3],
     };
 }
+
+/// Converts a raylib Color (u8 components 0-255) to a float array [4]f32 (0.0-1.0).
+/// This conversion is necessary when passing color data to shaders via uniforms,
+/// as GLSL shaders typically expect normalized float values.
+pub fn colorToFloatArray(color: rl.Color) [4]f32 {
+    return .{
+        @as(f32, @floatFromInt(color.r)) / 255.0,
+        @as(f32, @floatFromInt(color.g)) / 255.0,
+        @as(f32, @floatFromInt(color.b)) / 255.0,
+        @as(f32, @floatFromInt(color.a)) / 255.0,
+    };
+}

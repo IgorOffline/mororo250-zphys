@@ -74,6 +74,38 @@ pub const GjkBox = struct {
     }
 };
 
+pub const StepResult = enum {
+    Continue,
+    Intersection,
+    NoIntersection,
+};
+
+pub fn gjkStep(
+    simplex: []math.Vec3,
+    shape_a_points: []math.Vec3,
+    shape_b_points: []math.Vec3,
+    simplex_size: *usize,
+    search_direction: *math.Vec3,
+    shape_a: anytype,
+    shape_b: anytype,
+) StepResult {
+    const support_a = shape_a.support(search_direction.*);
+    const support_b = shape_b.support(search_direction.*.negate());
+    const new_point = support_a.sub(&support_b);
+
+    if (new_point.dot(search_direction) <= 0) return .NoIntersection;
+
+    simplex[simplex_size.*] = new_point;
+    shape_a_points[simplex_size.*] = support_a;
+    shape_b_points[simplex_size.*] = support_b;
+    simplex_size.* += 1;
+
+    const contains_origin = handleSimplex(simplex, shape_a_points, shape_b_points, simplex_size, search_direction);
+    if (contains_origin) return .Intersection;
+
+    return .Continue;
+}
+
 // Algorithm implementation: https://www.youtube.com/watch?v=ajv46BSqcK4&t=887s￥
 pub fn gjkIntersect(
     simplex_arrays: [3][]math.Vec3, // [0]=minkowski simplex (A-B), [1]=shape A support points, [2]=shape B support points
@@ -82,47 +114,35 @@ pub fn gjkIntersect(
 ) bool {
     var simplex_size: usize = 0;
     // Keep original naming in code: alias the arrays to descriptive locals
-    var simplex = simplex_arrays[0];
-    var shape_a_points = simplex_arrays[1];
-    var shape_b_points = simplex_arrays[2];
+    const simplex = simplex_arrays[0];
+    const shape_a_points = simplex_arrays[1];
+    const shape_b_points = simplex_arrays[2];
 
     var search_direction = shape_b.center.sub(&shape_a.center);
     if (search_direction.len2() < 1e-8)
         return true;
 
-    // Add first point from Minkowski difference: S(d) = supportA(d) - supportB(-d)
-    const support_a0 = shape_a.support(search_direction);
-    const support_b0 = shape_b.support(search_direction.negate());
-    simplex[0] = support_a0.sub(&support_b0);
-    shape_a_points[0] = support_a0;
-    shape_b_points[0] = support_b0;
-    simplex_size = 1;
-
-    if (simplex[0].dot(&search_direction) <= 0)
-        return false;
-    search_direction = simplex[0].negate();
-
     var iteration: usize = 0;
-    while (iteration < 30) : (iteration += 1) {
-        const support_a = shape_a.support(search_direction);
-        const support_b = shape_b.support(search_direction.negate());
-        const new_point = support_a.sub(&support_b);
-        if (new_point.dot(&search_direction) <= 0) return false;
-
-        simplex[simplex_size] = new_point;
-        shape_a_points[simplex_size] = support_a;
-        shape_b_points[simplex_size] = support_b;
-        simplex_size += 1;
-
-        const contains_origin = handleSimplex(simplex, shape_a_points, shape_b_points, &simplex_size, &search_direction);
-        if (contains_origin) return true;
+    while (iteration < 32) : (iteration += 1) {
+        const result = gjkStep(simplex, shape_a_points, shape_b_points, &simplex_size, &search_direction, shape_a, shape_b);
+        switch (result) {
+            .Intersection => return true,
+            .NoIntersection => return false,
+            .Continue => continue,
+        }
     }
     return false;
 }
 
-fn handleSimplex(simplex: []math.Vec3, shape_a_points: []math.Vec3, shape_b_points: []math.Vec3, simplex_size: *usize, search_direction: *math.Vec3) bool {
+pub fn handleSimplex(simplex: []math.Vec3, shape_a_points: []math.Vec3, shape_b_points: []math.Vec3, simplex_size: *usize, search_direction: *math.Vec3) bool {
     // Based on GJK in 3D - cases line, triangle, tetrahedron
     switch (simplex_size.*) {
+        1 => {
+            // Point A (A = last)
+            const last_point = simplex[0];
+            search_direction.* = last_point.negate();
+            return false;
+        },
         2 => {
             // Line AB (A = last)
             const last_point = simplex[1];

@@ -2,39 +2,13 @@ const std = @import("std");
 const math = @import("math");
 const zphys = @import("zphys");
 const rl = @import("raylib");
-const DebugRenderer = @import("debug_renderer.zig").DebugRenderer;
-const SceneRenderer = @import("scene_renderer.zig").SceneRenderer;
+const DebugRenderer = @import("shared/debug_renderer.zig").DebugRenderer;
+const SceneRenderer = @import("shared/scene_renderer.zig").SceneRenderer;
 
-// ------------------------------------------------------------------------------------------------
-// COPY OF INTERNAL LOGIC FROM GJK.ZIG
-// ------------------------------------------------------------------------------------------------
+// Todo: unify logis of the state and the internal epa and gjk logic.
+// Is it possible to do it while keeping pefomance?
+const GjkBox = zphys.collision.gjk.GjkBox;
 
-pub const GjkBox = struct {
-    center: math.Vec3,
-    orientation: math.Quat,
-    half_extents: math.Vec3,
-
-    pub fn support(self: *const @This(), direction: math.Vec3) math.Vec3 {
-        if (direction.len2() == 0.0) {
-            const local_support = math.vec3(self.half_extents.x(), self.half_extents.y(), self.half_extents.z());
-            const world_support = local_support.mulQuat(&self.orientation);
-            return self.center.add(&world_support);
-        }
-
-        const inv_rot = self.orientation.conjugate();
-        const local_dir = direction.mulQuat(&inv_rot);
-
-        const sx = if (local_dir.x() >= 0.0) self.half_extents.x() else -self.half_extents.x();
-        const sy = if (local_dir.y() >= 0.0) self.half_extents.y() else -self.half_extents.y();
-        const sz = if (local_dir.z() >= 0.0) self.half_extents.z() else -self.half_extents.z();
-
-        const local_support = math.vec3(sx, sy, sz);
-        const world_support = local_support.mulQuat(&self.orientation);
-        return self.center.add(&world_support);
-    }
-};
-
-// GJK State Machine
 const GJKStepper = struct {
     simplex: [4]math.Vec3 = undefined,
     shape_a_points: [4]math.Vec3 = undefined,
@@ -58,209 +32,47 @@ const GJKStepper = struct {
         if (self.search_direction.len2() < 1e-8) {
             self.finished = true;
             self.intersect = true;
-            return self;
         }
-
-        const support_a0 = shape_a.support(self.search_direction);
-        const support_b0 = shape_b.support(self.search_direction.negate());
-        self.simplex[0] = support_a0.sub(&support_b0);
-        self.shape_a_points[0] = support_a0;
-        self.shape_b_points[0] = support_b0;
-        self.simplex_size = 1;
-
-        if (self.simplex[0].dot(&self.search_direction) <= 0) {
-            self.finished = true;
-            self.intersect = false;
-            return self;
-        }
-        self.search_direction = self.simplex[0].negate();
         return self;
     }
 
     pub fn step(self: *GJKStepper, shape_a: GjkBox, shape_b: GjkBox) void {
-        if (self.finished or self.iteration >= 30) {
+        if (self.finished or self.iteration >= 32) {
             self.finished = true;
             return;
         }
         self.iteration += 1;
 
-        const support_a = shape_a.support(self.search_direction);
-        const support_b = shape_b.support(self.search_direction.negate());
-        const new_point = support_a.sub(&support_b);
-        
-        if (new_point.dot(&self.search_direction) <= 0) {
-            self.finished = true;
-            self.intersect = false;
-            return;
-        }
+        const result = zphys.collision.gjk.gjkStep(
+            self.simplex[0..],
+            self.shape_a_points[0..],
+            self.shape_b_points[0..],
+            &self.simplex_size,
+            &self.search_direction,
+            shape_a,
+            shape_b,
+        );
 
-        self.simplex[self.simplex_size] = new_point;
-        self.shape_a_points[self.simplex_size] = support_a;
-        self.shape_b_points[self.simplex_size] = support_b;
-        self.simplex_size += 1;
-
-        const contains_origin = self.handleSimplex();
-        if (contains_origin) {
-            self.finished = true;
-            self.intersect = true;
-            
-            // Copy simplex to output buffers for EPA
-            for (0..self.simplex_size) |i| {
-                self.out_simplex[i] = self.simplex[i];
-                self.out_shape_a[i] = self.shape_a_points[i];
-                self.out_shape_b[i] = self.shape_b_points[i];
-            }
-            self.out_count = self.simplex_size;
-        }
-    }
-    
-    // Copied from gjk.zig handleSimplex
-    fn handleSimplex(self: *GJKStepper) bool {
-        switch (self.simplex_size) {
-            2 => {
-                const last_point = self.simplex[1];
-                const previous_point = self.simplex[0];
-                const to_origin = last_point.negate();
-                const ab_edge = previous_point.sub(&last_point);
-                const ab_cross_ao = ab_edge.cross(&to_origin);
-                self.search_direction = ab_cross_ao.cross(&ab_edge);
-                if (self.search_direction.len2() < 1e-12) {
-                    self.search_direction = math.vec3(-ab_edge.y(), ab_edge.x(), 0);
+        switch (result) {
+            .Intersection => {
+                self.finished = true;
+                self.intersect = true;
+                // Copy simplex to output buffers for EPA
+                for (0..self.simplex_size) |i| {
+                    self.out_simplex[i] = self.simplex[i];
+                    self.out_shape_a[i] = self.shape_a_points[i];
+                    self.out_shape_b[i] = self.shape_b_points[i];
                 }
-                return false;
+                self.out_count = self.simplex_size;
             },
-            3 => {
-                const last_point = self.simplex[2];
-                const point_b = self.simplex[1];
-                const point_c = self.simplex[0];
-                const support_a_A = self.shape_a_points[2];
-                const support_a_B = self.shape_a_points[1];
-                const support_a_C = self.shape_a_points[0];
-                const support_b_A = self.shape_b_points[2];
-                const support_b_B = self.shape_b_points[1];
-                const support_b_C = self.shape_b_points[0];
-
-                const to_origin = last_point.negate();
-                const ab_edge = point_b.sub(&last_point);
-                const ac_edge = point_c.sub(&last_point);
-                const triangle_normal = ab_edge.cross(&ac_edge);
-                const ab_perp_direction = triangle_normal.cross(&ac_edge);
-                
-                if (ab_perp_direction.dot(&to_origin) > 0) {
-                    self.simplex[0] = point_c;
-                    self.simplex[1] = last_point;
-                    self.shape_a_points[0] = support_a_C;
-                    self.shape_a_points[1] = support_a_A;
-                    self.shape_b_points[0] = support_b_C;
-                    self.shape_b_points[1] = support_b_A;
-                    self.simplex_size = 2;
-                    self.search_direction = ac_edge.cross(&to_origin).cross(&ac_edge);
-                    if (self.search_direction.len2() < 1e-12) self.search_direction = math.vec3(-ac_edge.y(), ac_edge.x(), 0);
-                    return false;
-                }
-                const ac_perp_direction = ab_edge.cross(&triangle_normal);
-                if (ac_perp_direction.dot(&to_origin) > 0) {
-                    self.simplex[0] = point_b;
-                    self.simplex[1] = last_point;
-                    self.shape_a_points[0] = support_a_B;
-                    self.shape_a_points[1] = support_a_A;
-                    self.shape_b_points[0] = support_b_B;
-                    self.shape_b_points[1] = support_b_A;
-                    self.simplex_size = 2;
-                    self.search_direction = ab_edge.cross(&to_origin).cross(&ab_edge);
-                    if (self.search_direction.len2() < 1e-12) self.search_direction = math.vec3(-ab_edge.y(), ab_edge.x(), 0);
-                    return false;
-                }
-                if (triangle_normal.dot(&to_origin) > 0) {
-                    self.search_direction = triangle_normal;
-                } else {
-                    self.simplex[0] = point_b;
-                    self.simplex[1] = point_c;
-                    self.simplex[2] = last_point;
-                    self.shape_a_points[0] = support_a_B;
-                    self.shape_a_points[1] = support_a_C;
-                    self.shape_a_points[2] = support_a_A;
-                    self.shape_b_points[0] = support_b_B;
-                    self.shape_b_points[1] = support_b_C;
-                    self.shape_b_points[2] = support_b_A;
-                    self.search_direction = triangle_normal.negate();
-                }
-                return false;
+            .NoIntersection => {
+                self.finished = true;
+                self.intersect = false;
             },
-            4 => {
-                const last_point = self.simplex[3];
-                const point_b = self.simplex[2];
-                const point_c = self.simplex[1];
-                const point_d = self.simplex[0];
-                const support_a_A = self.shape_a_points[3];
-                const support_a_B = self.shape_a_points[2];
-                const support_a_C = self.shape_a_points[1];
-                const support_a_D = self.shape_a_points[0];
-                const support_b_A = self.shape_b_points[3];
-                const support_b_B = self.shape_b_points[2];
-                const support_b_C = self.shape_b_points[1];
-                const support_b_D = self.shape_b_points[0];
-
-                const to_origin = last_point.negate();
-                const ab_edge = point_b.sub(&last_point);
-                const ac_edge = point_c.sub(&last_point);
-                const ad_edge = point_d.sub(&last_point);
-                const face_abc = ab_edge.cross(&ac_edge);
-                const face_acd = ac_edge.cross(&ad_edge);
-                const face_adb = ad_edge.cross(&ab_edge);
-
-                if (face_abc.dot(&to_origin) > 0) {
-                    self.simplex[0] = point_c;
-                    self.simplex[1] = point_b;
-                    self.simplex[2] = last_point;
-                    self.shape_a_points[0] = support_a_C;
-                    self.shape_a_points[1] = support_a_B;
-                    self.shape_a_points[2] = support_a_A;
-                    self.shape_b_points[0] = support_b_C;
-                    self.shape_b_points[1] = support_b_B;
-                    self.shape_b_points[2] = support_b_A;
-                    self.simplex_size = 3;
-                    self.search_direction = face_abc;
-                    return false;
-                }
-                if (face_acd.dot(&to_origin) > 0) {
-                    self.simplex[0] = point_d;
-                    self.simplex[1] = point_c;
-                    self.simplex[2] = last_point;
-                    self.shape_a_points[0] = support_a_D;
-                    self.shape_a_points[1] = support_a_C;
-                    self.shape_a_points[2] = support_a_A;
-                    self.shape_b_points[0] = support_b_D;
-                    self.shape_b_points[1] = support_b_C;
-                    self.shape_b_points[2] = support_b_A;
-                    self.simplex_size = 3;
-                    self.search_direction = face_acd;
-                    return false;
-                }
-                if (face_adb.dot(&to_origin) > 0) {
-                    self.simplex[0] = point_b;
-                    self.simplex[1] = point_d;
-                    self.simplex[2] = last_point;
-                    self.shape_a_points[0] = support_a_B;
-                    self.shape_a_points[1] = support_a_D;
-                    self.shape_a_points[2] = support_a_A;
-                    self.shape_b_points[0] = support_b_B;
-                    self.shape_b_points[1] = support_b_D;
-                    self.shape_b_points[2] = support_b_A;
-                    self.simplex_size = 3;
-                    self.search_direction = face_adb;
-                    return false;
-                }
-                return true;
-            },
-            else => return false,
+            .Continue => {},
         }
     }
 };
-
-// ------------------------------------------------------------------------------------------------
-// COPY OF INTERNAL LOGIC FROM EPA.ZIG
-// ------------------------------------------------------------------------------------------------
 
 const Edge = struct { a: u32, b: u32 };
 const max_faces = 28;
@@ -268,8 +80,7 @@ const simplex_size = 4;
 const tolerance = 0.001;
 
 const EPAState = struct {
-    // Arrays
-    polytype: [16]math.Vec3 = undefined, // Using 16 explicitly like in crashes
+    polytype: [16]math.Vec3 = undefined,
     shape_a_points: [16]math.Vec3 = undefined,
     shape_b_points: [16]math.Vec3 = undefined,
     
@@ -350,7 +161,6 @@ const EPAState = struct {
             return;
         }
 
-        // Expand polytope
         var j: u32 = 0;
         var new_face_count: u32 = 0;
         var horizon_count: u32 = 0;
@@ -396,7 +206,6 @@ const EPAState = struct {
             self.finished = true; // Or crash if we want to simulate exact behavior (assertion failure)
         }
 
-        // Recompute for new faces
         j = new_face_count;
         while (j < self.face_count) : (j += 1) {
             const face = self.face_edge_indexes[j * 3 ..][0..3];
@@ -460,11 +269,6 @@ fn reconstructFaces(face_edge_indexes: []u32, face_count: *u32, horizons: []cons
     }
 }
 
-
-// ------------------------------------------------------------------------------------------------
-// MAIN RENDERER
-// ------------------------------------------------------------------------------------------------
-
 pub fn main() !void {
     const screenWidth = 800;
     const screenHeight = 450;
@@ -496,43 +300,7 @@ pub fn main() !void {
     const auto_step_delay: f32 = 0.5;
 
     while (!rl.windowShouldClose()) {
-        if (rl.isKeyPressed(.r)) {
-            gjk_state = GJKStepper.init(box_a, box_b);
-            epa_state = null;
-            paused = true;
-        }
-        if (rl.isKeyPressed(.p)) paused = !paused;
-        
-        var do_step = false;
-        if (rl.isKeyPressed(.n)) do_step = true;
-        
-        if (!paused) {
-            auto_step_timer += rl.getFrameTime();
-            if (auto_step_timer > auto_step_delay) {
-                auto_step_timer = 0;
-                do_step = true;
-            }
-        }
-
-        if (do_step) {
-            if (!gjk_state.finished) {
-                 gjk_state.step(box_a, box_b);
-                 if (gjk_state.finished and gjk_state.intersect) {
-                     epa_state = EPAState.init(gjk_state);
-                 }
-            } else if (epa_state) |*epa_s| {
-                 if (!epa_s.finished) {
-                     epa_s.step(box_a, box_b);
-                 }
-            }
-        }
-        
-        // Camera control
-        const mouse_wheel = rl.getMouseWheelMove();
-        if (mouse_wheel != 0) {
-             // Zoom logic approx
-        }
-        // Very basic camera update required for 'free' mode if we use .free
+        updateGJK_EPA(&gjk_state, &epa_state, &paused, &auto_step_timer, auto_step_delay, box_a, box_b);
         camera.update(.free);
 
         rl.beginDrawing();
@@ -540,98 +308,134 @@ pub fn main() !void {
         rl.clearBackground(.white);
 
         rl.beginMode3D(camera);
-            // Draw Origin
-            rl.drawGrid(10, 1.0);
-            rl.drawLine3D(.init(0,0,0), .init(1,0,0), .red);
-            rl.drawLine3D(.init(0,0,0), .init(0,1,0), .green);
-            rl.drawLine3D(.init(0,0,0), .init(0,0,1), .blue);
-
-            // Draw Boxes (Wireframe)
-            // Box A
-            rl.drawCubeWiresV(.init(box_a.center.x(), box_a.center.y(), box_a.center.z()), 
-                              .init(box_a.half_extents.x()*2, box_a.half_extents.y()*2, box_a.half_extents.z()*2), .gray);
-            // Box B
-             rl.drawCubeWiresV(.init(box_b.center.x(), box_b.center.y(), box_b.center.z()), 
-                              .init(box_b.half_extents.x()*2, box_b.half_extents.y()*2, box_b.half_extents.z()*2), .dark_gray);
-            
-            // Draw GJK Simplex
-            if (!gjk_state.finished or !gjk_state.intersect) {
-                for (0..gjk_state.simplex_size) |i| {
-                    const p = gjk_state.simplex[i];
-                    rl.drawSphere(.init(p.x(), p.y(), p.z()), 0.05, .orange);
-                }
-                // Draw lines between points (naive)
-                if (gjk_state.simplex_size > 1) {
-                    for (0..gjk_state.simplex_size) |i| {
-                        for (i+1..gjk_state.simplex_size) |j| {
-                             const p1 = gjk_state.simplex[i];
-                             const p2 = gjk_state.simplex[j];
-                             rl.drawLine3D(.init(p1.x(), p1.y(), p1.z()), .init(p2.x(), p2.y(), p2.z()), .orange);
-                        }
-                    }
-                }
-            }
-            
-            // Draw EPA Polytope
-            if (epa_state) |epa_s| {
-                // Draw vertices
-                for (0..epa_s.edges_count) |i| {
-                     const p = epa_s.polytype[i];
-                     rl.drawSphere(.init(p.x(), p.y(), p.z()), 0.03, .purple);
-                }
-                
-                // Draw faces (wireframe)
-                var f: u32 = 0;
-                while (f < epa_s.face_count) : (f += 1) {
-                     const face = epa_s.face_edge_indexes[f * 3 ..][0..3];
-                     const p0 = epa_s.polytype[face[0]];
-                     const p1 = epa_s.polytype[face[1]];
-                     const p2 = epa_s.polytype[face[2]];
-                     const v0 = rl.Vector3.init(p0.x(), p0.y(), p0.z());
-                     const v1 = rl.Vector3.init(p1.x(), p1.y(), p1.z());
-                     const v2 = rl.Vector3.init(p2.x(), p2.y(), p2.z());
-                     
-                     rl.drawLine3D(v0, v1, .purple);
-                     rl.drawLine3D(v1, v2, .purple);
-                     rl.drawLine3D(v2, v0, .purple);
-                     
-                     // Draw normal
-                     const c = epa_s.centroids[f];
-                     const n = epa_s.normals[f];
-                     const vc = rl.Vector3.init(c.x(), c.y(), c.z());
-                     const ve = rl.Vector3.init(c.x() + n.x()*0.2, c.y() + n.y()*0.2, c.z() + n.z()*0.2);
-                     rl.drawLine3D(vc, ve, .blue);
-                }
-                
-                // Draw current support point
-                const sp = epa_s.current_support;
-                rl.drawSphere(.init(sp.x(), sp.y(), sp.z()), 0.05, .red);
-            }
-
+        drawScene(box_a, box_b, gjk_state, epa_state);
         rl.endMode3D();
 
-        rl.drawText("GJK/EPA Visualizer", 10, 10, 20, .black);
-        if (gjk_state.finished) {
-             if (gjk_state.intersect) {
-                 rl.drawText("GJK: INTERSECT", 10, 40, 20, .green);
-             } else {
-                 rl.drawText("GJK: NO INTERSECT", 10, 40, 20, .red);
-             }
-        } else {
-             rl.drawText("GJK: Running...", 10, 40, 20, .blue);
-        }
-        
-        if (epa_state) |epa_s| {
-             if (epa_s.finished) {
-                  rl.drawText("EPA: FINISHED", 10, 70, 20, .green);
-             } else {
-                  var buf: [64]u8 = undefined;
-                  const s = std.fmt.bufPrintZ(&buf, "EPA: Step {} (V={})", .{epa_s.iter, epa_s.edges_count}) catch "";
-                  rl.drawText(s, 10, 70, 20, .blue);
-             }
-        }
-        
-        rl.drawText("Controls: P (Pause/Resume), N (Next Step), R (Reset)", 10, 420, 20, .black);
-
+        drawUI(gjk_state, epa_state);
     }
+}
+
+fn updateGJK_EPA(gjk_state: *GJKStepper, epa_state: *?EPAState, paused: *bool, auto_step_timer: *f32, auto_step_delay: f32, box_a: GjkBox, box_b: GjkBox) void {
+    if (rl.isKeyPressed(.r)) {
+        gjk_state.* = GJKStepper.init(box_a, box_b);
+        epa_state.* = null;
+        paused.* = true;
+    }
+    if (rl.isKeyPressed(.p)) paused.* = !paused.*;
+
+    var do_step = false;
+    if (rl.isKeyPressed(.n)) do_step = true;
+
+    if (!paused.*) {
+        auto_step_timer.* += rl.getFrameTime();
+        if (auto_step_timer.* > auto_step_delay) {
+            auto_step_timer.* = 0;
+            do_step = true;
+        }
+    }
+
+    if (do_step) {
+        if (!gjk_state.finished) {
+             gjk_state.step(box_a, box_b);
+             if (gjk_state.finished and gjk_state.intersect) {
+                 epa_state.* = EPAState.init(gjk_state.*);
+             }
+        } else if (epa_state.*) |*epa_s| {
+             if (!epa_s.finished) {
+                 epa_s.step(box_a, box_b);
+             }
+        }
+    }
+}
+
+fn drawScene(box_a: GjkBox, box_b: GjkBox, gjk_state: GJKStepper, epa_state: ?EPAState) void {
+    // Draw Origin
+    rl.drawGrid(10, 1.0);
+    rl.drawLine3D(.init(0,0,0), .init(1,0,0), .red);
+    rl.drawLine3D(.init(0,0,0), .init(0,1,0), .green);
+    rl.drawLine3D(.init(0,0,0), .init(0,0,1), .blue);
+
+    rl.drawCubeWiresV(.init(box_a.center.x(), box_a.center.y(), box_a.center.z()),
+                      .init(box_a.half_extents.x()*2, box_a.half_extents.y()*2, box_a.half_extents.z()*2), .gray);
+     rl.drawCubeWiresV(.init(box_b.center.x(), box_b.center.y(), box_b.center.z()),
+                      .init(box_b.half_extents.x()*2, box_b.half_extents.y()*2, box_b.half_extents.z()*2), .dark_gray);
+
+    // Draw GJK Simplex
+    if (!gjk_state.finished or !gjk_state.intersect) {
+        for (0..gjk_state.simplex_size) |i| {
+            const p = gjk_state.simplex[i];
+            rl.drawSphere(.init(p.x(), p.y(), p.z()), 0.05, .orange);
+        }
+        // Draw lines between points (naive)
+        if (gjk_state.simplex_size > 1) {
+            for (0..gjk_state.simplex_size) |i| {
+                for (i+1..gjk_state.simplex_size) |j| {
+                     const p1 = gjk_state.simplex[i];
+                     const p2 = gjk_state.simplex[j];
+                     rl.drawLine3D(.init(p1.x(), p1.y(), p1.z()), .init(p2.x(), p2.y(), p2.z()), .orange);
+                }
+            }
+        }
+    }
+
+    // Draw EPA Polytope
+    if (epa_state) |epa_s| {
+        // Draw vertices
+        for (0..epa_s.edges_count) |i| {
+             const p = epa_s.polytype[i];
+             rl.drawSphere(.init(p.x(), p.y(), p.z()), 0.03, .purple);
+        }
+
+        // Draw faces (wireframe)
+        var f: u32 = 0;
+        while (f < epa_s.face_count) : (f += 1) {
+             const face = epa_s.face_edge_indexes[f * 3 ..][0..3];
+             const p0 = epa_s.polytype[face[0]];
+             const p1 = epa_s.polytype[face[1]];
+             const p2 = epa_s.polytype[face[2]];
+             const v0 = rl.Vector3.init(p0.x(), p0.y(), p0.z());
+             const v1 = rl.Vector3.init(p1.x(), p1.y(), p1.z());
+             const v2 = rl.Vector3.init(p2.x(), p2.y(), p2.z());
+
+             rl.drawLine3D(v0, v1, .purple);
+             rl.drawLine3D(v1, v2, .purple);
+             rl.drawLine3D(v2, v0, .purple);
+
+             // Draw normal
+             const c = epa_s.centroids[f];
+             const n = epa_s.normals[f];
+             const vc = rl.Vector3.init(c.x(), c.y(), c.z());
+             const ve = rl.Vector3.init(c.x() + n.x()*0.2, c.y() + n.y()*0.2, c.z() + n.z()*0.2);
+             rl.drawLine3D(vc, ve, .blue);
+        }
+
+        // Draw current support point
+        const sp = epa_s.current_support;
+        rl.drawSphere(.init(sp.x(), sp.y(), sp.z()), 0.05, .red);
+    }
+}
+
+fn drawUI(gjk_state: GJKStepper, epa_state: ?EPAState) void {
+    rl.drawText("GJK/EPA Visualizer", 10, 10, 20, .black);
+    if (gjk_state.finished) {
+         if (gjk_state.intersect) {
+             rl.drawText("GJK: INTERSECT", 10, 40, 20, .green);
+         } else {
+             rl.drawText("GJK: NO INTERSECT", 10, 40, 20, .red);
+         }
+    } else {
+         rl.drawText("GJK: Running...", 10, 40, 20, .blue);
+    }
+
+    if (epa_state) |epa_s| {
+         if (epa_s.finished) {
+              rl.drawText("EPA: FINISHED", 10, 70, 20, .green);
+         } else {
+              var buf: [64]u8 = undefined;
+              const s = std.fmt.bufPrintZ(&buf, "EPA: Step {} (V={})", .{epa_s.iter, epa_s.edges_count}) catch "";
+              rl.drawText(s, 10, 70, 20, .blue);
+         }
+    }
+
+    rl.drawText("Controls: P (Pause/Resume), N (Next Step), R (Reset)", 10, 420, 20, .black);
 }
